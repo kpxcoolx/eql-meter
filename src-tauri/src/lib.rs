@@ -414,14 +414,14 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
     let mut builder =
         WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("overlay.html".into()))
             .title("EQL Overlay")
-            .inner_size(380.0, 54.0)
+            .inner_size(380.0, 80.0)
             .min_inner_size(300.0, 54.0)
             .resizable(false)
             .decorations(false)
             .always_on_top(true)
             .visible_on_all_workspaces(true)
             .skip_taskbar(true)
-            .focused(false)
+            .focused(true)
             .visible(true);
 
     // Windows WebView2 often fails with fully transparent windows (invisible or white).
@@ -446,12 +446,12 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
         x: 80.0,
         y: 80.0,
         width: 380.0,
-        height: 56.0,
+        height: 80.0,
     });
     let safe = place_overlay_on_screen(&app, &seed);
     builder = builder
         .position(safe.x, safe.y)
-        .inner_size(safe.width.max(300.0), safe.height.max(54.0));
+        .inner_size(safe.width.max(300.0), safe.height.max(80.0));
 
     let window = builder.build().map_err(|e| e.to_string())?;
 
@@ -467,6 +467,8 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
     let _ = remember_window(&app, "overlay", safe);
     let _ = window.show();
     let _ = window.set_focus();
+    // Ensure the overlay document actually loads (blank WebView2 cases).
+    let _ = window.eval("void 0");
 
     *state.overlay_open.lock() = true;
     emit_overlay_status(&app, &state);
