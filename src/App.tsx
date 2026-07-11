@@ -9,7 +9,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
-import { open, message } from "@tauri-apps/plugin-dialog";
+import { open, message, ask } from "@tauri-apps/plugin-dialog";
 import { formatDuration, liveRate, useLiveDuration } from "./useLiveDuration";
 import {
   checkForAppUpdate,
@@ -610,22 +610,15 @@ function App() {
 
   const startPath = useCallback(async (path: string, fromStart: boolean) => {
     setError(null);
-    setBusy(true);
-    try {
-      const next = await invoke<MeterState>("start_monitoring", {
-        path,
-        fromStart,
-      });
-      setMeter(next);
-      selectionPinned.current = false;
-      prevLiveCount.current = next.active_fights.length;
-      setSelectedFightIds(defaultSelectedFightIds(next));
-      setCombinedFight(null);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
+    const next = await invoke<MeterState>("start_monitoring", {
+      path,
+      fromStart,
+    });
+    setMeter(next);
+    selectionPinned.current = false;
+    prevLiveCount.current = next.active_fights.length;
+    setSelectedFightIds(defaultSelectedFightIds(next));
+    setCombinedFight(null);
   }, []);
 
   useEffect(() => {
@@ -841,6 +834,12 @@ function App() {
     return false;
   }
 
+  function fightItemClass(fightId: number): string {
+    if (!isFightHighlighted(fightId)) return "";
+    if (selectedFightIds.length > 1) return "multi-selected";
+    return "selected";
+  }
+
   function selectFight(
     id: number,
     event: ReactMouseEvent<HTMLButtonElement>
@@ -943,12 +942,12 @@ function App() {
         filters: [{ name: "EQ Log", extensions: ["txt"] }],
       });
       if (!selected || Array.isArray(selected)) {
-        setBusy(false);
         return;
       }
       await startPath(selected, false);
     } catch (err) {
       setError(String(err));
+    } finally {
       setBusy(false);
     }
   }, [startPath]);
@@ -963,6 +962,7 @@ function App() {
       await startPath(found.path, false);
     } catch (err) {
       setError(String(err));
+    } finally {
       setBusy(false);
     }
   }, [startPath]);
@@ -984,6 +984,7 @@ function App() {
       );
     } catch (err) {
       setError(String(err));
+    } finally {
       setBusy(false);
     }
   }, [startPath]);
@@ -1001,14 +1002,43 @@ function App() {
   }, []);
 
   const clearFights = useCallback(async () => {
-    const next = await invoke<MeterState>("clear_fights");
-    setMeter(next);
-    selectionPinned.current = false;
-    prevLiveCount.current = next.active_fights.length;
-    setSelectedFightIds(defaultSelectedFightIds(next));
-    setCombinedFight(null);
-    setSelectedPlayer(null);
-  }, []);
+    const count =
+      meter.active_fights.length + meter.recent_fights.length;
+    if (count === 0) return;
+
+    let confirmed = true;
+    try {
+      confirmed = await ask(
+        `Delete all ${count} fight${count === 1 ? "" : "s"} from the list?`,
+        {
+          title: "Clear fights",
+          kind: "warning",
+          okLabel: "Delete all",
+          cancelLabel: "Cancel",
+        }
+      );
+    } catch {
+      confirmed = true;
+    }
+    if (!confirmed) return;
+
+    try {
+      const next = await invoke<MeterState>("clear_fights");
+      setMeter(next);
+      selectionPinned.current = false;
+      prevLiveCount.current = next.active_fights.length;
+      setSelectedFightIds(defaultSelectedFightIds(next));
+      setCombinedFight(null);
+      setSelectedPlayer(null);
+      setToast(
+        next.active_fights.length > 0
+          ? "Cleared history — live fights will keep appearing while monitoring"
+          : "Cleared all fights"
+      );
+    } catch (err) {
+      setError(`Clear fights failed: ${String(err)}`);
+    }
+  }, [meter.active_fights.length, meter.recent_fights.length]);
 
   const removeFight = useCallback(async (fightId: number) => {
     setFightContextMenu(null);
@@ -1055,22 +1085,23 @@ function App() {
       }>("toggle_overlay");
       setOverlayOpen(status.open);
       setOverlayClickThrough(status.click_through);
+      // Toast only — a blocking Windows dialog steals focus from the overlay
+      // WebView and makes it look blank / unclickable.
       if (status.open) {
         const where =
           status.x != null && status.y != null
-            ? `\nPosition: ${Math.round(status.x)}, ${Math.round(status.y)}`
+            ? ` at ${Math.round(status.x)}, ${Math.round(status.y)}`
             : "";
-        await showNotice(
-          "Overlay",
-          `Overlay is open.${where}\n\nLook for a dark meter bar always on top. If you still do not see it, note the position above.`
+        setToast(
+          `Overlay open${where}. Use Close Overlay or ✕ to dismiss.`
         );
       } else {
-        await showNotice("Overlay", "Overlay closed.");
+        setToast("Overlay closed");
       }
     } catch (err) {
-      await showNotice("Overlay failed", String(err), "error");
+      setError(`Overlay failed: ${String(err)}`);
     }
-  }, [showNotice]);
+  }, []);
 
   const setClickThrough = useCallback(async (enabled: boolean) => {
     try {
@@ -1288,8 +1319,7 @@ function App() {
               type="button"
               className="btn primary"
               disabled={busy}
-              onClick={autoDetect}
-              title="Find eqlog_*.txt under the EverQuest Legends Logs folder"
+              onClick={() => void autoDetect()}
             >
               Auto-detect
             </button>
@@ -1435,6 +1465,7 @@ function App() {
                 disabled={
                   meter.active_fights.length + meter.recent_fights.length < 2
                 }
+                title="Select every fight for a combined summary"
               >
                 Select all
               </button>
@@ -1443,19 +1474,21 @@ function App() {
                   type="button"
                   className="linkish"
                   onClick={clearFightSelection}
+                  title="Back to a single fight"
                 >
-                  Deselect
+                  Clear selection
                 </button>
               ) : null}
               <button
                 type="button"
-                className="linkish"
+                className="linkish danger"
                 onClick={() => void clearFights()}
                 disabled={
                   meter.active_fights.length + meter.recent_fights.length === 0
                 }
+                title="Delete every fight from the list"
               >
-                Clear all
+                Delete all
               </button>
             </div>
           </div>
@@ -1470,9 +1503,7 @@ function App() {
             {meter.active_fights.length > 1 && meter.active_fight ? (
               <button
                 type="button"
-                className={`fight-item active-live ${
-                  isFightHighlighted(0) ? "selected" : ""
-                }`}
+                className={`fight-item active-live ${fightItemClass(0)}`}
                 onClick={(event) => selectFight(0, event)}
               >
                 <span className="fight-target">{meter.active_fight.target}</span>
@@ -1487,9 +1518,7 @@ function App() {
               <button
                 key={fight.id}
                 type="button"
-                className={`fight-item active-live ${
-                  isFightHighlighted(fight.id) ? "selected" : ""
-                }`}
+                className={`fight-item active-live ${fightItemClass(fight.id)}`}
                 onClick={(event) => selectFight(fight.id, event)}
                 onContextMenu={(event) => openFightContextMenu(fight.id, event)}
               >
@@ -1505,9 +1534,7 @@ function App() {
               <button
                 key={fight.id}
                 type="button"
-                className={`fight-item ${
-                  isFightHighlighted(fight.id) ? "selected" : ""
-                }`}
+                className={`fight-item ${fightItemClass(fight.id)}`}
                 onClick={(event) => selectFight(fight.id, event)}
                 onContextMenu={(event) => openFightContextMenu(fight.id, event)}
               >

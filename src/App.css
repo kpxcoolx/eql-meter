@@ -449,10 +449,10 @@ input {
 
 .fight-rail-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.2rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
 }
 
 .fight-rail-head h2 {
@@ -461,7 +461,9 @@ input {
 
 .fight-rail-actions {
   display: flex;
-  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.7rem;
 }
 
 .fight-rail-actions .linkish,
@@ -470,14 +472,20 @@ input {
   background: transparent;
   color: var(--amber);
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
   padding: 0;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .fight-rail-actions .linkish:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.fight-rail-actions .linkish.danger {
+  color: #e0a090;
 }
 
 .fight-rail-hint {
@@ -486,6 +494,7 @@ input {
   font-size: 0.72rem;
 }
 
+/* Single focused fight */
 .fight-item.selected {
   background: rgba(224, 168, 74, 0.22);
   border-color: rgba(224, 168, 74, 0.65);
@@ -494,6 +503,17 @@ input {
 
 .fight-item.selected .fight-target {
   color: var(--amber-hot);
+}
+
+/* Multi-select: quiet mark so 9 identical rows don't scream */
+.fight-item.multi-selected {
+  background: rgba(224, 168, 74, 0.07);
+  border-color: rgba(224, 168, 74, 0.22);
+  box-shadow: inset 2px 0 0 rgba(224, 168, 74, 0.45);
+}
+
+.fight-item.multi-selected .fight-target {
+  color: var(--text);
 }
 
 .fight-item.active-live .fight-meta {

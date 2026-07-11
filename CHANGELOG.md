@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.10] — 2026-07-11
+
+### Fixed
+
+- Overlay open no longer pops a blocking Windows dialog (was stealing focus / looking blank).
+- Auto-detect no longer sticks disabled after the first click.
+- Fights rail: Select all multi-select styling cleaned up; Clear selection vs Delete all clarified.
+
 ## [0.1.9] — 2026-07-11
 
 ### Fixed
@@ -102,7 +110,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.10
 [0.1.9]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.9
 [0.1.8]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.8
 [0.1.7]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.7
