@@ -1,0 +1,29 @@
+[Fri Jul 10 21:30:10 2026] Welcome to EverQuest Legends!
+[Fri Jul 10 21:30:12 2026] You begin casting Flame Lick.
+[Fri Jul 10 21:30:14 2026] You hit a goblin warrior for 42 points of damage.
+[Fri Jul 10 21:30:14 2026] Mira slashes a goblin warrior for 88 points of damage.
+[Fri Jul 10 21:30:15 2026] Torin crushes a goblin warrior for 156 points of damage. (Critical)
+[Fri Jul 10 21:30:15 2026] You hit a goblin warrior for 51 points of damage.
+[Fri Jul 10 21:30:16 2026] A goblin warrior has taken 55 damage from Flame Lick by You.
+[Fri Jul 10 21:30:16 2026] Mira slashes a goblin warrior for 79 points of damage.
+[Fri Jul 10 21:30:17 2026] Kael hit a goblin warrior for 210 points of non-melee damage. (Critical)
+[Fri Jul 10 21:30:17 2026] Torin crushes a goblin warrior for 101 points of damage.
+[Fri Jul 10 21:30:18 2026] You hit a goblin warrior for 47 points of damage.
+[Fri Jul 10 21:30:18 2026] Mira's ice comet hits a goblin warrior for 340 points of non-melee damage.
+[Fri Jul 10 21:30:19 2026] A goblin warrior has taken 55 damage from Flame Lick by You.
+[Fri Jul 10 21:30:19 2026] Torin crushes a goblin warrior for 143 points of damage. (Critical)
+[Fri Jul 10 21:30:20 2026] Kael hit a goblin warrior for 185 points of non-melee damage.
+[Fri Jul 10 21:30:20 2026] You hit a goblin warrior for 63 points of damage. (Critical)
+[Fri Jul 10 21:30:21 2026] Mira slashes a goblin warrior for 92 points of damage.
+[Fri Jul 10 21:30:21 2026] A goblin warrior has taken 55 damage from Flame Lick by You.
+[Fri Jul 10 21:30:22 2026] Torin crushes a goblin warrior for 118 points of damage.
+[Fri Jul 10 21:30:23 2026] Kael hit a goblin warrior for 198 points of non-melee damage.
+[Fri Jul 10 21:30:24 2026] You hit a goblin warrior for 44 points of damage.
+[Fri Jul 10 21:30:24 2026] Mira slashes a goblin warrior for 85 points of damage.
+[Fri Jul 10 21:30:25 2026] A goblin warrior has been slain by Torin!
+[Fri Jul 10 21:30:40 2026] You hit an orc centurion for 49 points of damage.
+[Fri Jul 10 21:30:41 2026] Mira slashes an orc centurion for 95 points of damage.
+[Fri Jul 10 21:30:42 2026] Torin crushes an orc centurion for 167 points of damage. (Critical)
+[Fri Jul 10 21:30:43 2026] Kael hit an orc centurion for 220 points of non-melee damage.
+[Fri Jul 10 21:30:44 2026] You hit an orc centurion for 58 points of damage.
+[Fri Jul 10 21:30:45 2026] An orc centurion has been slain by Mira!

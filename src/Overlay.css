@@ -1,0 +1,311 @@
+:root {
+  --bg: rgba(18, 16, 14, var(--overlay-bg-alpha, 0.88));
+  --bg-row: transparent;
+  --bg-top: rgba(224, 168, 74, 0.18);
+  --bg-self: rgba(212, 162, 76, 0.16);
+  --line: rgba(232, 196, 120, 0.18);
+  --text: #f3ebe0;
+  --muted: #a89880;
+  --amber: #e0a84a;
+  --amber-hot: #f0c56a;
+  --teal: #6f9e8c;
+  --heal: #7dcea0;
+  --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+  --overlay-font: 13px;
+  --overlay-row-h: 24px;
+  --overlay-header-h: 28px;
+  --overlay-bg-alpha: 0.88;
+  color: var(--text);
+  font-family: var(--font-body);
+  background: transparent;
+  font-size: var(--overlay-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: auto;
+  min-height: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.overlay-shell {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.overlay-shell.locked {
+  border-color: rgba(111, 158, 140, 0.55);
+}
+
+.overlay-top {
+  display: grid;
+  grid-template-columns: auto minmax(24px, 1fr) 64px 52px 40px;
+  gap: 6px;
+  align-items: center;
+  padding: 0 6px;
+  height: var(--overlay-header-h);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.overlay-shell.show-pct .overlay-top {
+  grid-template-columns: auto minmax(24px, 1fr) 42px 64px 52px 40px;
+}
+
+.overlay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 52px 40px;
+  gap: 6px;
+  align-items: center;
+  padding: 0 6px;
+  height: var(--overlay-row-h);
+  font-size: var(--overlay-font);
+  line-height: 1.1;
+  background: var(--bg-row);
+}
+
+.overlay-shell.show-pct .overlay-row {
+  grid-template-columns: minmax(0, 1fr) 42px 64px 52px 40px;
+}
+
+.overlay-drag {
+  min-width: 12px;
+  height: 100%;
+  cursor: grab;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.overlay-tools,
+.overlay-tools *,
+.overlay-menu,
+.overlay-menu *,
+.overlay-icon,
+.overlay-col-label {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.overlay-tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  justify-self: start;
+  z-index: 5;
+}
+
+.overlay-col-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.overlay-icon {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+
+.overlay-icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+.overlay-icon.close {
+  font-size: 16px;
+}
+
+.overlay-icon:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(232, 196, 120, 0.12);
+}
+
+.overlay-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.overlay-menu {
+  position: relative;
+  z-index: 20;
+  width: 100%;
+  min-height: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 6px 8px;
+  background: rgba(12, 10, 8, 0.97);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  pointer-events: auto;
+}
+
+.overlay-menu-section {
+  margin: 6px 8px 2px;
+  color: var(--amber);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.overlay-menu-section:first-child {
+  margin-top: 2px;
+}
+
+.overlay-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.overlay-menu button.on {
+  color: var(--amber-hot);
+}
+
+.overlay-menu button:hover:not(:disabled) {
+  background: rgba(224, 168, 74, 0.2);
+}
+
+.overlay-menu button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.overlay-menu-hint {
+  margin: 4px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.overlay-toast {
+  margin: 0;
+  padding: 3px 8px;
+  background: rgba(111, 158, 140, 0.28);
+  color: #d7ebe3;
+  font-size: 12px;
+}
+
+.overlay-fight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  height: 22px;
+  border-top: 1px solid var(--line);
+  background: rgba(224, 168, 74, 0.1);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.overlay-shell.compact .overlay-fight {
+  height: 20px;
+}
+
+.overlay-fight-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--amber-hot);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.overlay-fight-meta {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.overlay-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-row.top,
+.overlay-row:hover {
+  background: var(--bg-top);
+}
+
+.overlay-row.self:not(.top) {
+  background: var(--bg-self);
+}
+
+.overlay-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay-row.self .overlay-name {
+  color: var(--amber-hot);
+  font-weight: 700;
+}
+
+.overlay-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.overlay-num.pct {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.overlay-empty {
+  margin: 0;
+  padding: 4px 8px;
+  height: var(--overlay-row-h);
+  color: var(--muted);
+  font-size: var(--overlay-font);
+  line-height: var(--overlay-row-h);
+}
+
+.overlay-shell.compact .overlay-col-label {
+  font-size: 10px;
+}
