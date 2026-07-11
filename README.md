@@ -26,19 +26,21 @@ Live combat meter for **EverQuest Legends** — tails your character log, tracks
 |--|--|
 | **Live fights** | Multi-mob Combined view, ability breakdown, DPS chart |
 | **Overlay** | Always-on-top meter; click-through so the game stays playable |
-| **Raid / heals / misc** | `/who all raid` roster, healing done + received, loot & chat |
+| **Raid / heals / loot** | `/who all raid` roster, healing done + received, loot from the log |
 | **Convenience** | Remembers last log + window positions; optional ability-name file |
 
 ---
 
 ## Everyday controls
 
-| Menu | Use it for |
-|------|------------|
-| **Monitor** | Find / choose / resume / stop the character log |
-| **Overlay** | Open overlay; toggle click-through |
-| **Combat** | Copy parse, end fight, clear history, skip tiny fights |
-| **Extras** | Ability names file; load sample fight |
+| Control | Use it for |
+|---------|------------|
+| **Find / Auto-detect log** | Attach to your character log |
+| **Copy Parse** | Copy a compact parse (confirmation popup) |
+| **Overlay** | Open / close floating meter (confirmation popup with position) |
+| **Menu** | Choose log, stop, click-through, check for updates |
+
+Tabs in the main meter: **DPS** · **Heals** · **Raid** · **Loot**
 
 ### Overlay hotkeys
 
@@ -67,9 +69,13 @@ npm run tauri:dev
 
 ### Ship a Windows installer
 
-Do not ask players to build. From GitHub: **Actions → windows-build → Run workflow** (e.g. `v0.1.4`), then **publish the draft release**. Requires repo secrets `TAURI_SIGNING_PRIVATE_KEY` (and optional password) so the updater can sign installs.
+Do not ask players to build. Tag a version (bumps `package.json` / `tauri.conf.json` / `Cargo.toml` first), then push:
 
-Or tag: `git tag v0.1.3 && git push origin v0.1.3`
+```bash
+git tag v0.1.8 && git push origin v0.1.8
+```
+
+Or from GitHub: **Actions → windows-build → Run workflow** with the tag (e.g. `v0.1.8`), then **publish the draft release** if needed. Requires repo secrets `TAURI_SIGNING_PRIVATE_KEY` (and optional password) so the updater can sign installs.
 
 Local NSIS (on Windows):
 

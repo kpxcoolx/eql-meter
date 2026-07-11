@@ -15,13 +15,13 @@ You do **not** need Node, Rust, or Git.
 2. Run the installer (current-user; **no admin**)
 3. Start **EQL Meter**
 4. Click **Find Legends log** (or **Menu → Monitor → Find Legends log**)
-5. Open **Overlay** → enable **Click-through to game**
+5. Open **Overlay** — confirm the popup, then enable click-through if you need clicks to reach the game
 
 ### Ready when…
 
 - [ ] EQ logging is **on**
 - [ ] Meter shows **Monitoring** + your character name
-- [ ] Overlay is open and click-through
+- [ ] Overlay opened (confirmation popup) and click-through is on if you want
 - [ ] EQ is **windowed** or **borderless** (not exclusive fullscreen)
 
 ---
@@ -41,12 +41,12 @@ Example: `eqlog_Francis_legends.txt`
 
 | Control | What it does |
 |---------|----------------|
-| **Overlay** button | Open / close |
+| **Overlay** button | Open / close (shows a confirmation with screen position) |
 | Click-through | Mouse reaches the game |
 | `Ctrl+Shift+U` | Make overlay clickable |
 | `Ctrl+Shift+L` | Click-through again |
 
-EQ must be **windowed** or **borderless** (not exclusive fullscreen) for the overlay to appear above the game.
+EQ must be **windowed** or **borderless** (not exclusive fullscreen) for the overlay to appear above the game. On Windows the overlay uses a dark opaque bar so WebView2 stays visible.
 
 ---
 
@@ -60,7 +60,7 @@ EQL Meter checks GitHub for a newer release on startup.
 | Install it | Banner **Install update**, or **Menu → Install …** |
 | Manual download | **Menu → Open latest release…** or [Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest) |
 
-The first time you need this updater, install **v0.1.4+** once by hand. Later updates can install from inside the app.
+The first time you need this updater, install **v0.1.4+** once by hand. Later updates can install from inside the app. Current release: **v0.1.8+**.
 
 ---
 
@@ -80,11 +80,11 @@ The first time you need this updater, install **v0.1.4+** once by hand. Later up
 
 | Want… | Do this |
 |-------|---------|
-| Share numbers in chat | **Copy parse** |
+| Share numbers in chat | **Copy Parse** (confirmation popup with preview) |
 | Multi-mob pull | Select **Combined** (or Cmd/Ctrl+click fights) |
 | Raid roster / group DPS | In game: `/who all raid` → **Raid** tab |
 | Heals | **Heals** tab |
-| Loot / rolls / chat | **Misc** tab |
+| Loot | **Loot** tab |
 | Remove a bad fight | Right-click it in the Fights list → **Delete fight** |
 
 ---
@@ -96,8 +96,9 @@ The first time you need this updater, install **v0.1.4+** once by hand. Later up
 | No log found | Confirm the path above → **Choose log…** |
 | Idle while fighting | Logging on? **Find Legends log** / **Resume last log** |
 | Overlay blocks clicks | `Ctrl+Shift+L` |
-| Overlay white / opaque box | Update to the latest build (WebView2 transparency fix) |
-| Overlay not visible | Use windowed/borderless EQ (not exclusive fullscreen); update to latest build |
+| Overlay not visible | Use windowed/borderless EQ; note the position in the confirmation popup; update to **v0.1.8+** |
+| Copy Parse did nothing | You should get a confirmation popup — if you see an error, update or report it |
+| Pet name in the Fights list | Update to **v0.1.8+**; or right-click → **Delete fight** |
 | Terminal windows flashing | Update to the latest build; also fully quit — closing main now exits the overlay too |
 | Overlay stays after closing app | Update — closing the main window now closes the overlay and exits |
 | Wrong character | Open the matching `eqlog_YourName_*.txt` |
