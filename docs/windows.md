@@ -1,28 +1,32 @@
 # EQL Meter — Windows
 
-Use this when **EverQuest Legends and EQL Meter both run on Windows** (the normal player setup).
+**EverQuest Legends + EQL Meter on the same Windows PC** (normal player setup).
 
-## For players (what you want)
+![EQL Meter](images/main-window.png)
 
-You do **not** need Node, Rust, or Git. Download an installer and run it.
+---
 
-1. Get the latest **Windows installer** (`.exe`) from  
-   [Releases](https://github.com/kpxcoolx/eql-meter/releases)  
-   (or a draft release your team published from GitHub Actions).
-2. Run the NSIS installer — current-user install, **no admin required**.
-3. Start **EQL Meter**.
-4. Click **Find Legends log** (or **Menu → Monitor → Find Legends log**).
-5. Open **Overlay**, then enable **Click-through to game**.
+## Install (players)
 
-### First-run checklist
+You do **not** need Node, Rust, or Git.
 
-1. EQ Legends logging is **on**
-2. A recent log exists (see path below)
-3. Meter shows **Monitoring** and your character name
-4. Overlay is open and set to click-through
-5. EQ is **windowed** or **borderless** (not exclusive fullscreen)
+1. Download **EQL.Meter_\*_x64-setup.exe** from  
+   [Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest)
+2. Run the installer (current-user; **no admin**)
+3. Start **EQL Meter**
+4. Click **Find Legends log** (or **Menu → Monitor → Find Legends log**)
+5. Open **Overlay** → enable **Click-through to game**
 
-## Where the log lives
+### Ready when…
+
+- [ ] EQ logging is **on**
+- [ ] Meter shows **Monitoring** + your character name
+- [ ] Overlay is open and click-through
+- [ ] EQ is **windowed** or **borderless** (not exclusive fullscreen)
+
+---
+
+## Log path
 
 ```text
 C:\Users\Public\Daybreak Game Company\Installed Games\EverQuest Legends\Logs
@@ -31,50 +35,69 @@ eqlog_<Character>_<Server>.txt
 
 Example: `eqlog_Francis_legends.txt`
 
+---
+
 ## Overlay
 
 | Control | What it does |
 |---------|----------------|
-| **Overlay** button | Open / close the floating meter |
-| Click-through | Mouse goes to the game |
-| **Ctrl+Shift+U** | Make overlay clickable |
-| **Ctrl+Shift+L** | Click-through to game again |
+| **Overlay** button | Open / close |
+| Click-through | Mouse reaches the game |
+| `Ctrl+Shift+U` | Make overlay clickable |
+| `Ctrl+Shift+L` | Click-through again |
 
 When the EQ client exits, the overlay **auto-hides** on Windows.
 
+---
+
 ## Monitor menu
 
-| Item | Use |
-|------|-----|
-| Find Legends log | Auto-detect under the public Daybreak path |
-| Choose log… | Pick `eqlog_*.txt` yourself |
-| Replay whole log… | Parse from the start of the file |
-| Resume last log | Re-attach after restart |
-| Stop monitoring | Detach |
-
-## Combat / raid tips
-
-- **Copy parse for chat** — compact summary for group/raid chat
-- Multi-mob pulls — left rail **Combined** merges live mobs
-- In game, run `/who all raid` — then open the **Raid** tab
-- **Misc** — loot, randoms, rolls, chat
-- **Heals** — healing done + healing received
-
-## Troubleshooting
-
-| Problem | Try |
-|---------|-----|
-| No log found | Confirm the Logs path; use **Choose log…** |
-| Meter idle while fighting | Logging on? **Resume last log** or **Find Legends log** again |
-| Overlay blocks the game | **Ctrl+Shift+L** |
-| Overlay gone after closing EQ | Expected — reopen when you launch EQ |
-| Wrong character | Open the correct `eqlog_YourName_*.txt` |
+| Item | When to use it |
+|------|----------------|
+| **Find Legends log** | Default — auto-detect under the Daybreak path |
+| **Choose log…** | Pick `eqlog_*.txt` yourself |
+| **Replay whole log…** | Parse from the start of the file |
+| **Resume last log** | Re-attach after restart |
+| **Stop monitoring** | Detach |
 
 ---
 
-## For contributors only (build from source)
+## During a fight
 
-Players should ignore this section. Building requires Node.js 22+, Rust, and several minutes of compile time.
+| Want… | Do this |
+|-------|---------|
+| Share numbers in chat | **Copy parse** |
+| Multi-mob pull | Select **Combined** (or Cmd/Ctrl+click fights) |
+| Raid roster / group DPS | In game: `/who all raid` → **Raid** tab |
+| Heals | **Heals** tab |
+| Loot / rolls / chat | **Misc** tab |
+| Remove a bad fight | Right-click it in the Fights list → **Delete fight** |
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| No log found | Confirm the path above → **Choose log…** |
+| Idle while fighting | Logging on? **Find Legends log** / **Resume last log** |
+| Overlay blocks clicks | `Ctrl+Shift+L` |
+| Overlay gone after closing EQ | Expected — reopen when you launch EQ |
+| Wrong character | Open the matching `eqlog_YourName_*.txt` |
+
+---
+
+## Mac / Parallels?
+
+EQ in a VM, meter on the Mac host → [Mac + Parallels](mac-parallels.md)  
+(There is **no** Mac `.dmg`.)
+
+---
+
+<details>
+<summary><strong>Contributors — build from source</strong></summary>
+
+Players can ignore this. Needs Node.js 22+, Rust, and several minutes to compile.
 
 ```bash
 git clone https://github.com/kpxcoolx/eql-meter.git
@@ -83,16 +106,14 @@ npm install
 npm run tauri:build:windows
 ```
 
-Installer output: `src-tauri\target\release\bundle\nsis\`
+Installer: `src-tauri\target\release\bundle\nsis\`
 
-Or run the **windows-build** workflow (Actions → Run workflow) to produce a **draft GitHub Release** with the `.exe` attached.
+Or run **windows-build** in GitHub Actions to attach a draft release `.exe`.
 
-Dev mode without packaging:
+Dev mode:
 
 ```bash
 npm run tauri:dev
 ```
 
-## Mac / Parallels
-
-If EQ runs in a VM and the meter runs on the Mac host, see [Mac + Parallels](mac-parallels.md).
+</details>

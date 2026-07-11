@@ -1,40 +1,49 @@
 # EQL Meter — Mac + Parallels
 
-Use this when **EverQuest Legends runs in a Windows VM** (Parallels) and **EQL Meter runs on the Mac**.
+**EQ Legends in a Windows VM** · **EQL Meter on the Mac host**
 
-The meter reads the Windows log file through the mounted `C:` volume under `/Volumes`.
+The meter reads the Windows log through Parallels’ mounted `C:` under `/Volumes`.
 
-## No Mac installer
+![EQL Meter](images/main-window.png)
 
-There is **no macOS `.dmg` (or other Mac package)** on GitHub Releases. Releases only ship the **Windows** NSIS `.exe`.
+---
 
-On Mac you always run from source (`npm run tauri:dev` below). That is the supported Mac path for Parallels dogfooding — not a missing download.
+## Important: no Mac installer
 
-Windows players should use the installer: [Windows](windows.md).
+| | |
+|--|--|
+| **GitHub Releases** | Windows `.exe` only |
+| **macOS `.dmg`** | Does not exist |
+| **How you run on Mac** | Clone + `npm run tauri:dev` (below) |
 
-## Requirements
+This is intentional for Parallels dogfooding — not a missing download.  
+Windows-only players → [Windows guide](windows.md).
 
-- Parallels Desktop with a Windows VM
-- EverQuest Legends installed in that VM
-- Logging enabled in EQ Legends
-- Node.js 22+ and Rust (to build and run the meter locally)
+---
 
-## One-time setup
+## Checklist
 
-1. Start the Windows VM.
-2. Confirm the Windows disk is mounted:
-   - Finder → **Go → Go to Folder…** → `/Volumes`
-   - You should see something like `[C] Windows 11` or `[C] Windows 11.hidden`
-3. In EQ Legends (inside the VM), turn **logging** on if it is not already.
-4. Play briefly so a log file exists under:
+- [ ] Parallels Windows VM running
+- [ ] EQ Legends + logging on inside the VM
+- [ ] Node.js 22+ and Rust on the Mac
+- [ ] Windows disk visible under `/Volumes` (e.g. `[C] Windows 11` or `[C] Windows 11.hidden`)
 
-   `C:\Users\Public\Daybreak Game Company\Installed Games\EverQuest Legends\Logs`
+---
 
-   File name looks like: `eqlog_YourName_legends.txt`
+## 1. Mount + log file
 
-## Run the meter on Mac
+1. Start the Windows VM  
+2. Finder → **Go → Go to Folder…** → `/Volumes`  
+3. In EQ, enable logging and play briefly so a log exists:
 
-Clone and run in dev mode (this is how you get the app on Mac):
+```text
+C:\Users\Public\Daybreak Game Company\Installed Games\EverQuest Legends\Logs
+eqlog_<YourName>_*.txt
+```
+
+---
+
+## 2. Run the meter
 
 ```bash
 git clone https://github.com/kpxcoolx/eql-meter.git
@@ -43,49 +52,67 @@ npm install
 npm run tauri:dev
 ```
 
-There is no published Mac build step to skip this.
+There is no packaged Mac build to download instead.
 
-## Attach to the live log
+---
 
-1. Keep the Windows VM running (so `C:` stays mounted).
-2. In EQL Meter, click **Live Parallels** (top bar), or **Menu → Monitor → Live Parallels log**.
-3. Play in EQ — combat should update the meter within about ~150ms.
+## 3. Attach to the log
+
+1. Keep the VM running (so `C:` stays mounted)  
+2. Click **Live Parallels** (top bar), or **Menu → Monitor → Live Parallels log**  
+3. Fight in EQ — the meter should update within ~150ms  
 
 ### If Live Parallels fails
 
-1. Check `/Volumes` again — the VM disk must be mounted.
-2. Use **Menu → Monitor → Choose log…** and pick the file manually. Typical Mac path:
+1. Confirm `/Volumes` still shows the Windows disk  
+2. **Menu → Monitor → Choose log…** — typical path:
 
-   `/Volumes/[C] Windows 11.hidden/Users/Public/Daybreak Game Company/Installed Games/EverQuest Legends/Logs/eqlog_*.txt`
+```text
+/Volumes/[C] Windows 11.hidden/Users/Public/Daybreak Game Company/Installed Games/EverQuest Legends/Logs/eqlog_*.txt
+```
 
-3. Or use **Menu → Monitor → Find any eqlog…** to search mounted volumes.
+3. Or **Menu → Monitor → Find any eqlog…**
 
-## Overlay on Mac
+---
 
-- Click **Overlay** to open the floating meter.
-- **Menu → Overlay → Click-through to game** so mouse clicks reach EQ in the VM window.
-- **Cmd+Shift+U** — make overlay clickable again  
-- **Cmd+Shift+L** — click-through to game  
+## Overlay
 
-Run EQ windowed or borderless inside the VM so you can see the Mac overlay over (or beside) the game window.
+| Control | Action |
+|---------|--------|
+| **Overlay** | Open floating meter |
+| **Menu → Overlay → Click-through** | Clicks reach EQ in the VM |
+| `Cmd+Shift+U` | Overlay clickable |
+| `Cmd+Shift+L` | Click-through to game |
 
-## Useful Monitor menu items
+Run EQ **windowed / borderless** in the VM so you can see the Mac overlay.
+
+---
+
+## Monitor menu (quick ref)
 
 | Item | Use |
 |------|-----|
-| Live Parallels log | Best default while the VM is up |
-| Find any eqlog… | Search for any `eqlog_*.txt` on mounted disks |
-| Choose log… | Pick a file yourself |
-| Replay whole log… | Parse the file from the start (history) |
-| Resume last log | Re-attach to the path you used last time |
-| Stop monitoring | Detach from the log |
+| **Live Parallels log** | Best default while the VM is up |
+| **Find any eqlog…** | Search mounted disks |
+| **Choose log…** | Pick the file yourself |
+| **Replay whole log…** | Parse from the start |
+| **Resume last log** | Re-attach after restart |
+| **Stop monitoring** | Detach |
+
+---
 
 ## Tips
 
-- If the meter goes quiet after a VM sleep/resume, click **Live Parallels** again or **Resume last log**.
-- Parallels mounts do not always fire reliable file events — the meter polls frequently so appends still show up.
-- Sample fights: **Menu → Extras → Load sample fight** (no game required).
+| Situation | What to do |
+|-----------|------------|
+| Quiet after VM sleep | **Live Parallels** or **Resume last log** again |
+| Bad / pet-named fight in the list | Right-click → **Delete fight** |
+| No game handy | **Menu → Extras → Load sample fight** |
+
+Parallels mounts are not always perfect for file events — the meter polls so appends still show up.
+
+---
 
 ## Not for Mac-only play
 
-EQL Meter does not replace a Windows install of EQ. On Mac you are always reading a **Windows** log (via Parallels or a copied file). For playing on a Windows PC, see [Windows](windows.md).
+EQL Meter always reads a **Windows** log (Parallels mount or a copied file). It does not replace running EQ on Windows. Pure Windows setup → [Windows](windows.md).
