@@ -118,7 +118,9 @@ pub struct MeterState {
     pub monitoring: bool,
     pub focus_primary: bool,
     pub min_fight_damage: u64,
-    /// When true, only your damage/heals (and pets) count — other players in the log are ignored.
+    /// When true, only your damage/heals (and pets) count on fights you open.
+    /// When false (default), group members are ranked on those fights too —
+    /// but nearby open-world fights you never touch are still ignored.
     pub self_only: bool,
     /// Live NPC fights (one row per mob, EQLogParser-style).
     pub active_fights: Vec<FightSummary>,
@@ -444,7 +446,8 @@ pub struct FightTracker {
     monitoring: bool,
     focus_primary: bool,
     min_fight_damage: u64,
-    /// Default on: EQ logs include other group/raid hits; we only want yours.
+    /// When true, hide other players even on fights you opened.
+    /// Default false: group parse on your fights, ignore open-world noise.
     self_only: bool,
     active: HashMap<String, Fight>,
     recent: Vec<Fight>,
@@ -468,7 +471,7 @@ impl Default for FightTracker {
             monitoring: false,
             focus_primary: false,
             min_fight_damage: 0,
-            self_only: true,
+            self_only: false,
             active: HashMap::new(),
             recent: Vec::new(),
             roster_building: HashMap::new(),
@@ -734,12 +737,30 @@ impl FightTracker {
             return;
         }
 
-        // Pets are learned from "Your …" lines and from mobs hitting the pet —
-        // never by guessing that another player on the same target is your pet.
+        // Pets are learned from "Your …" lines and from mobs hitting a known pet
+        // (or hitting a pet-like name while you are already fighting that mob).
 
         let resolved = self.resolve_attacker(&dmg.attacker);
         let attacker = resolved.owner;
 
+        // "Orc hits Bob" in open world — never open a fight named after a bystander.
+        if looks_like_npc(&attacker)
+            && !self.is_self_combatant(&dmg.target)
+            && !self.is_owned_pet(&dmg.target)
+        {
+            return;
+        }
+
+        let key = fight_key(&dmg.target);
+        let already_engaged = self.active.contains_key(&key);
+
+        // Only YOU (or your pet) can start a fight. Other players' hits on a mob
+        // you never touched stay out of the list (open-world noise).
+        if !already_engaged && !self.is_self_combatant(&attacker) {
+            return;
+        }
+
+        // Optional: personal parse — ignore group even on fights you opened.
         if self.self_only && !self.is_self_combatant(&attacker) {
             return;
         }
@@ -844,6 +865,11 @@ impl FightTracker {
         }
 
         let attacker = self.resolve_attacker(&avoid.attacker).owner;
+        let key = fight_key(&avoid.target);
+        let already_engaged = self.active.contains_key(&key);
+        if !already_engaged && !self.is_self_combatant(&attacker) {
+            return;
+        }
         if self.self_only && !self.is_self_combatant(&attacker) {
             return;
         }
@@ -1155,8 +1181,12 @@ impl FightTracker {
         if is_self_label(attacker) || is_self_label(target) {
             return false;
         }
-        // Known pet, or an NPC (including named multi-word mobs) hitting a pet-like name.
-        self.is_owned_pet(target) || looks_like_npc(attacker)
+        if self.is_owned_pet(target) {
+            return true;
+        }
+        // Mob swinging while you're already fighting that mob — learn the pet name.
+        // Do NOT claim random open-world hits on other players as your pet.
+        looks_like_npc(attacker) && self.active.contains_key(&fight_key(attacker))
     }
 }
 
@@ -1829,10 +1859,11 @@ mod tests {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
 
-        // Multi-word named mob hits single-token pet — used to open a "Kasarn" fight.
+        // Engage first so pet hits from this mob can be learned.
+        tracker.ingest(hit(100.0, "Innoruuk's Chosen", 100));
         tracker.ingest(CombatEvent::Damage(DamageEvent {
             timestamp: String::new(),
-            time_secs: Some(100.0),
+            time_secs: Some(100.2),
             incoming: false,
             attacker: "Innoruuk's Chosen".into(),
             target: "Kasarn".into(),
@@ -1843,7 +1874,7 @@ mod tests {
         }));
         tracker.ingest(CombatEvent::Damage(DamageEvent {
             timestamp: String::new(),
-            time_secs: Some(100.2),
+            time_secs: Some(100.4),
             incoming: false,
             attacker: "Kasarn".into(),
             target: "Innoruuk's Chosen".into(),
@@ -1852,7 +1883,6 @@ mod tests {
             spell: None,
             modifiers: Vec::new(),
         }));
-        tracker.ingest(hit(100.4, "Innoruuk's Chosen", 100));
 
         let snap = tracker.snapshot();
         assert!(
@@ -1871,6 +1901,7 @@ mod tests {
     fn self_only_ignores_other_players() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
+        tracker.set_self_only(true);
         assert!(tracker.snapshot().self_only);
 
         tracker.ingest(hit(100.0, "a skeleton", 50));
@@ -1897,7 +1928,7 @@ mod tests {
     fn group_mode_keeps_other_players() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
-        tracker.set_self_only(false);
+        assert!(!tracker.snapshot().self_only);
 
         tracker.ingest(hit(100.0, "a skeleton", 50));
         tracker.ingest(CombatEvent::Damage(DamageEvent {
@@ -1915,6 +1946,41 @@ mod tests {
         let fight = tracker.snapshot().active_fight.expect("fight");
         assert!(fight.players.iter().any(|p| p.name == "Bob"));
         assert_eq!(fight.total_damage, 130);
+    }
+
+    #[test]
+    fn open_world_other_players_do_not_open_fights() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // Strangers fighting nearby — must not appear in the fight list.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.0),
+            incoming: false,
+            attacker: "Bob".into(),
+            target: "a skeleton".into(),
+            amount: 200,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.1),
+            incoming: false,
+            attacker: "a goblin".into(),
+            target: "Alice".into(),
+            amount: 40,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let snap = tracker.snapshot();
+        assert!(snap.active_fights.is_empty());
+        assert!(snap.active_fight.is_none());
+        assert!(snap.recent_fights.is_empty());
     }
 }
 

@@ -180,7 +180,7 @@ const emptyState: MeterState = {
   monitoring: false,
   focus_primary: false,
   min_fight_damage: 0,
-  self_only: true,
+  self_only: false,
   active_fights: [],
   active_fight: null,
   recent_fights: [],
@@ -1210,8 +1210,8 @@ function App() {
       setMeter(next);
       setToast(
         enabled
-          ? "Self only — other players in your log are ignored"
-          : "Group mode — other players in your log are counted"
+          ? "Self only — hide group members on your fights"
+          : "Group parse — rank everyone on fights you engage"
       );
     } catch (err) {
       setError(String(err));
@@ -1484,7 +1484,7 @@ function App() {
                   onClick={() =>
                     runMenuAction(() => void toggleSelfOnly(!meter.self_only))
                   }
-                  title="Your EQ log includes other players' hits. Self only keeps your damage and pets."
+                  title="Group parse ranks everyone on fights you touch. Self only hides group members. Nearby fights you never join stay hidden either way."
                 >
                   {meter.self_only ? "Show group damage" : "Self only (hide group)"}
                 </button>
