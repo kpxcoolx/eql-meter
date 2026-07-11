@@ -115,6 +115,16 @@ export default function Overlay() {
   }, [toast]);
 
   useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        void closeOverlay();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
     if (!menuOpen) return;
     function onDoc(event: PointerEvent) {
       const target = event.target as Node | null;
@@ -222,6 +232,7 @@ export default function Overlay() {
   const fightBarH = fight ? 22 : 0;
   const rowH = Math.max(22, prefs.fontSize + 10);
   const toastH = 22;
+  const lockHintH = clickThrough ? toastH : 0;
   const bodyRows = fight ? Math.max(rows.length, 1) : 1;
 
   useEffect(() => {
@@ -230,12 +241,13 @@ export default function Overlay() {
       fightBarH +
       (menuOpen ? MENU_H : 0) +
       (toast ? toastH : 0) +
+      lockHintH +
       bodyRows * rowH +
       2;
     void getCurrentWindow()
       .setSize(new LogicalSize(OVERLAY_WIDTH, Math.max(h, headerH + rowH + 2)))
       .catch(() => undefined);
-  }, [bodyRows, toast, headerH, fightBarH, rowH, toastH, menuOpen]);
+  }, [bodyRows, toast, headerH, fightBarH, rowH, toastH, lockHintH, menuOpen]);
 
   const shellStyle = {
     ["--overlay-font" as string]: `${prefs.fontSize}px`,
@@ -300,11 +312,11 @@ export default function Overlay() {
           <button
             type="button"
             className="overlay-icon close"
-            title="Close"
+            title="Close overlay"
             onClick={() => void closeOverlay()}
-            aria-label="Close"
+            aria-label="Close overlay"
           >
-            ×
+            ✕
           </button>
         </div>
 
@@ -315,6 +327,12 @@ export default function Overlay() {
         <span className="overlay-col-label">DPS</span>
         <span className="overlay-col-label">Sec</span>
       </header>
+
+      {clickThrough ? (
+        <p className="overlay-toast">
+          Click-through on — Ctrl+Shift+U to unlock, or Close Overlay in main
+        </p>
+      ) : null}
 
       {menuOpen ? (
         <div className="overlay-menu" ref={menuRef}>

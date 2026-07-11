@@ -8,6 +8,8 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  // Relative asset URLs so overlay.html can load JS/CSS in the packaged app.
+  base: "./",
   build: {
     rollupOptions: {
       input: {
