@@ -124,6 +124,10 @@ pub fn parse_line(line: &str) -> Option<CombatEvent> {
 }
 
 pub fn parse_action(data: &LineData) -> Option<CombatEvent> {
+    // Self-damage (cannibalize, DS ticks on self) must never open fights.
+    if is_self_only_line(&data.action) {
+        return None;
+    }
     if let Some(stance) = parse_stance_line(data) {
         return Some(CombatEvent::Stance(stance));
     }
@@ -148,31 +152,11 @@ pub fn parse_action(data: &LineData) -> Option<CombatEvent> {
     if let Some(damage) = parse_damage_line(data) {
         return Some(CombatEvent::Damage(damage));
     }
-    if let Some(self_hurt) = parse_self_hurt(data) {
-        return Some(CombatEvent::Damage(self_hurt));
-    }
+    // Cannibalize / DS self-ticks ("You hurt yourself…") are not combat — ignore.
     if let Some(misc) = parse_misc_line(&data.action, &data.timestamp, data.time_secs) {
         return Some(CombatEvent::Misc(misc));
     }
     None
-}
-
-fn parse_self_hurt(data: &LineData) -> Option<DamageEvent> {
-    let lower = data.action.to_ascii_lowercase();
-    let rest = lower.strip_prefix("you hurt yourself for ")?;
-    let amount_str = rest.split_whitespace().next()?;
-    let amount: u64 = amount_str.parse().ok()?;
-    Some(DamageEvent {
-        timestamp: data.timestamp.clone(),
-        time_secs: data.time_secs,
-        incoming: true,
-        attacker: "Yourself".to_string(),
-        target: "YOU".to_string(),
-        amount,
-        hit_type: "self".to_string(),
-        spell: None,
-        modifiers: Vec::new(),
-    })
 }
 
 fn parse_death(data: &LineData) -> Option<DeathEvent> {
@@ -246,6 +230,20 @@ fn parse_death(data: &LineData) -> Option<DeathEvent> {
     }
 
     None
+}
+
+fn is_self_only_line(action: &str) -> bool {
+    let lower = action.to_ascii_lowercase();
+    if lower.starts_with("you hurt yourself for ") {
+        return true;
+    }
+    if lower.starts_with("you have taken ") && lower.contains(" from cannibal") {
+        return true;
+    }
+    if lower.contains("as you cannibalize") {
+        return true;
+    }
+    false
 }
 
 /// Character name from `eqlog_Name_Server.txt`
@@ -394,16 +392,9 @@ mod tests {
     }
 
     #[test]
-    fn parses_self_hurt() {
+    fn ignores_self_hurt() {
         let line = "[Fri Jul 10 21:25:09 2026] You hurt yourself for 3 points.";
-        let event = parse_line(line).expect("parse");
-        match event {
-            CombatEvent::Damage(d) => {
-                assert!(d.incoming);
-                assert_eq!(d.amount, 3);
-            }
-            _ => panic!("expected damage"),
-        }
+        assert!(parse_line(line).is_none());
     }
 
     #[test]

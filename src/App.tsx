@@ -923,6 +923,12 @@ function App() {
     if (!displayedFight || !selectedPlayer) return null;
     return displayedFight.players.find((p) => p.name === selectedPlayer) ?? null;
   }, [displayedFight, selectedPlayer]);
+  const selectedPetDamage = useMemo(() => {
+    if (!selectedPlayerStat) return 0;
+    return selectedPlayerStat.abilities
+      .filter((a) => a.name.startsWith("Pet ("))
+      .reduce((sum, a) => sum + a.damage, 0);
+  }, [selectedPlayerStat]);
 
   const openLog = useCallback(async (fromStart: boolean) => {
     setError(null);
@@ -2271,6 +2277,9 @@ function App() {
                     {selectedPlayerStat.attempts > 0
                       ? ` · Acc ${selectedPlayerStat.accuracy_pct.toFixed(0)}%`
                       : ""}
+                    {selectedPetDamage > 0
+                      ? ` · Pet ${formatNumber(selectedPetDamage)}`
+                      : ""}
                     {selectedPlayerStat.healing > 0
                       ? ` · Heal ${formatNumber(selectedPlayerStat.healing)}`
                       : ""}
@@ -2282,7 +2291,7 @@ function App() {
                   .filter((ability) =>
                     isHealsTab ? ability.healing > 0 : ability.damage > 0
                   )
-                  .map((ability) => {
+                      .map((ability) => {
                     const amount = isHealsTab
                       ? ability.healing
                       : ability.damage;
@@ -2290,8 +2299,18 @@ function App() {
                       ? Math.max(selectedPlayerStat.healing, 1)
                       : Math.max(selectedPlayerStat.damage, 1);
                     const width = Math.max(4, (amount / total) * 100);
+                    const isPet = ability.name.startsWith("Pet (");
+                    let fillClass = "ability";
+                    if (isHealsTab) {
+                      fillClass = "heal";
+                    } else if (isPet) {
+                      fillClass = "pet";
+                    }
                     return (
-                      <div key={ability.name} className="ability-row">
+                      <div
+                        key={ability.name}
+                        className={`ability-row ${isPet ? "pet" : ""}`}
+                      >
                         <div className="ability-top">
                           <span>{ability.name}</span>
                           <span>
@@ -2301,7 +2320,7 @@ function App() {
                         </div>
                         <div className="bar-track thin">
                           <div
-                            className={`bar-fill ${isHealsTab ? "heal" : "ability"}`}
+                            className={`bar-fill ${fillClass}`}
                             style={{ width: `${width}%` }}
                           />
                         </div>

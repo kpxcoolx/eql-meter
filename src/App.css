@@ -903,6 +903,14 @@ input {
   background: linear-gradient(90deg, #3f6d5f, #7fb39f);
 }
 
+.bar-fill.pet {
+  background: linear-gradient(90deg, #5a4a78, #9b87c4);
+}
+
+.ability-row.pet .ability-top span:first-child {
+  color: #c4b5e0;
+}
+
 .hero-empty {
   max-width: 34rem;
   margin: 4rem auto;

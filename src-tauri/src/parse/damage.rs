@@ -162,9 +162,16 @@ pub fn parse_damage_line(data: &LineData) -> Option<DamageEvent> {
 }
 
 /// Incoming hits land on YOU — mark as taken, not DPS dealt.
+/// Also normalize "Your pet" attackers so the fight engine can merge them.
 fn outgoing_or_none(mut event: DamageEvent) -> Option<DamageEvent> {
     if event.target.eq_ignore_ascii_case("you") {
         event.incoming = true;
+    }
+    // "Your pet hits …" / "your pet's Flame Lick"
+    if event.attacker.eq_ignore_ascii_case("your pet")
+        || event.attacker.eq_ignore_ascii_case("my pet")
+    {
+        event.attacker = "Your pet".to_string();
     }
     Some(event)
 }

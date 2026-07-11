@@ -449,6 +449,8 @@ pub struct FightTracker {
     raid_roster: Option<RaidRoster>,
     recent_rosters: Vec<RaidRoster>,
     misc_log: Vec<MiscEvent>,
+    /// Pet display name → owner character name.
+    pet_owners: HashMap<String, String>,
 }
 
 impl FightTracker {
@@ -495,6 +497,7 @@ impl FightTracker {
         self.raid_roster = None;
         self.recent_rosters.clear();
         self.misc_log.clear();
+        self.pet_owners.clear();
     }
 
     pub fn ingest(&mut self, event: CombatEvent) {
@@ -645,7 +648,8 @@ impl FightTracker {
             return;
         }
 
-        let attacker = self.resolve_name(&dmg.attacker);
+        let resolved = self.resolve_attacker(&dmg.attacker);
+        let attacker = resolved.owner;
         let target = dmg.target.clone();
         let Some(fight) = self.fight_for(&target, now) else {
             return;
@@ -669,10 +673,14 @@ impl FightTracker {
             fight.max_hit_by = Some(attacker.clone());
         }
 
-        let ability_name = dmg
+        let base_ability = dmg
             .spell
             .clone()
             .unwrap_or_else(|| dmg.hit_type.clone());
+        let ability_name = match &resolved.pet {
+            Some(pet) => format!("Pet ({pet}): {base_ability}"),
+            None => base_ability,
+        };
 
         let player = fight.players.entry(attacker).or_default();
         player.damage += dmg.amount;
@@ -701,8 +709,8 @@ impl FightTracker {
     }
 
     fn on_incoming(&mut self, dmg: DamageEvent, now: f64) {
-        let source = dmg.attacker.clone();
-        if source == "Yourself" {
+        let source = self.resolve_attacker(&dmg.attacker).owner;
+        if is_self_label(&source) || is_self_label(&dmg.attacker) {
             return;
         }
         let Some(fight) = self.fight_for(&source, now) else {
@@ -736,7 +744,7 @@ impl FightTracker {
             return;
         }
 
-        let attacker = self.resolve_name(&avoid.attacker);
+        let attacker = self.resolve_attacker(&avoid.attacker).owner;
         let Some(fight) = self.fight_for(&avoid.target, now) else {
             return;
         };
@@ -759,8 +767,8 @@ impl FightTracker {
 
     fn on_heal(&mut self, heal: HealEvent, now: f64) {
         // Attach heals to the active fight; don't open a new fight from heals alone.
-        let healer = self.resolve_name(&heal.healer);
-        let target = self.resolve_name(&heal.target);
+        let healer = self.resolve_attacker(&heal.healer).owner;
+        let target = self.resolve_attacker(&heal.target).owner;
         let Some(key) = self.most_recent_active_key() else {
             return;
         };
@@ -864,7 +872,7 @@ impl FightTracker {
     }
 
     fn fight_for(&mut self, target: &str, now: f64) -> Option<&mut Fight> {
-        if target.is_empty() || target == "Yourself" {
+        if target.is_empty() || is_self_label(target) {
             return None;
         }
         // Always open/update a per-NPC fight so multi-mob pulls stay visible.
@@ -929,15 +937,146 @@ impl FightTracker {
         }
     }
 
-    fn resolve_name(&self, raw: &str) -> String {
-        if raw.eq_ignore_ascii_case("you") || raw.eq_ignore_ascii_case("your") {
-            return self
+    fn resolve_attacker(&mut self, raw: &str) -> ResolvedAttacker {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return ResolvedAttacker {
+                owner: trimmed.to_string(),
+                pet: None,
+            };
+        }
+
+        if is_self_label(trimmed) {
+            let owner = self
                 .character
                 .clone()
                 .unwrap_or_else(|| "You".to_string());
+            return ResolvedAttacker {
+                owner,
+                pet: None,
+            };
         }
-        raw.to_string()
+
+        // "Your pet" / "My pet" / "Your fire elemental" → you + pet label
+        if let Some(rest) = strip_your_prefix(trimmed) {
+            let owner = self
+                .character
+                .clone()
+                .unwrap_or_else(|| "You".to_string());
+            let pet = pet_display_name(rest);
+            if !rest.is_empty() {
+                self.note_pet(rest, &owner);
+            }
+            return ResolvedAttacker {
+                owner,
+                pet: Some(pet),
+            };
+        }
+
+        // "Francis's pet" / "Francis`s pet" / "Francis pet"
+        if let Some(owner) = owner_from_pet_label(trimmed) {
+            return ResolvedAttacker {
+                owner,
+                pet: Some("Pet".to_string()),
+            };
+        }
+
+        // Named pet we already mapped to an owner
+        if let Some(owner) = self.pet_owners.get(&trimmed.to_ascii_lowercase()) {
+            return ResolvedAttacker {
+                owner: owner.clone(),
+                pet: Some(trimmed.to_string()),
+            };
+        }
+
+        ResolvedAttacker {
+            owner: trimmed.to_string(),
+            pet: None,
+        }
     }
+
+    /// Remember that a pet name belongs to an owner (usually you).
+    pub fn note_pet(&mut self, pet_name: &str, owner: &str) {
+        let key = pet_name.trim().to_ascii_lowercase();
+        if key.is_empty() || key == "pet" {
+            return;
+        }
+        self.pet_owners.insert(key, owner.to_string());
+    }
+}
+
+struct ResolvedAttacker {
+    owner: String,
+    /// When set, damage is from a pet and should show in the owner's ability breakdown.
+    pet: Option<String>,
+}
+
+fn pet_display_name(rest: &str) -> String {
+    let trimmed = rest.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("pet") {
+        return "Pet".to_string();
+    }
+    // "pet Fluffy" → Fluffy; otherwise keep the creature type/name.
+    if let Some(name) = trimmed
+        .strip_prefix("pet ")
+        .or_else(|| trimmed.strip_prefix("Pet "))
+    {
+        let name = name.trim();
+        if !name.is_empty() {
+            return name.to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+fn is_self_label(name: &str) -> bool {
+    name.eq_ignore_ascii_case("you")
+        || name.eq_ignore_ascii_case("your")
+        || name.eq_ignore_ascii_case("yourself")
+        || name.eq_ignore_ascii_case("me")
+}
+
+fn strip_your_prefix(label: &str) -> Option<&str> {
+    let bytes = label.as_bytes();
+    if bytes.len() >= 5 && label[..5].eq_ignore_ascii_case("your ") {
+        return Some(label[5..].trim());
+    }
+    if bytes.len() >= 3 && label[..3].eq_ignore_ascii_case("my ") {
+        let rest = label[3..].trim();
+        let rest_lower = rest.to_ascii_lowercase();
+        if rest_lower == "pet" || rest_lower.starts_with("pet ") {
+            return Some(rest);
+        }
+    }
+    None
+}
+
+fn owner_from_pet_label(label: &str) -> Option<String> {
+    let lower = label.to_ascii_lowercase();
+    if let Some(owner) = lower.strip_suffix("'s pet") {
+        let owner = owner.trim();
+        if !owner.is_empty() {
+            return Some(title_case_preserve(label, owner.len()));
+        }
+    }
+    if let Some(owner) = lower.strip_suffix("`s pet") {
+        let owner = owner.trim();
+        if !owner.is_empty() {
+            return Some(title_case_preserve(label, owner.len()));
+        }
+    }
+    if let Some(owner) = lower.strip_suffix(" pet") {
+        let owner = owner.trim();
+        // Avoid treating "your pet" here (handled earlier) or NPC phrases.
+        if !owner.is_empty() && !owner.contains(' ') {
+            return Some(title_case_preserve(label, owner.len()));
+        }
+    }
+    None
+}
+
+fn title_case_preserve(original: &str, owner_len: usize) -> String {
+    original[..owner_len.min(original.len())].trim().to_string()
 }
 
 fn fight_key(name: &str) -> String {
@@ -1337,6 +1476,91 @@ mod tests {
         assert_eq!(active.target, "a kor ghoul wizard");
         assert_eq!(snap.recent_fights.len(), 1);
         assert_eq!(snap.recent_fights[0].target, "a skeleton");
+    }
+
+    #[test]
+    fn merges_you_dots_and_pet_onto_character() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "a skeleton", 50));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.5),
+            incoming: false,
+            attacker: "You".into(),
+            target: "a skeleton".into(),
+            amount: 44,
+            hit_type: "dot".into(),
+            spell: Some("Blood Siphon Strike".into()),
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(101.0),
+            incoming: false,
+            attacker: "Your pet".into(),
+            target: "a skeleton".into(),
+            amount: 30,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(101.5),
+            incoming: false,
+            attacker: "Your fire elemental".into(),
+            target: "a skeleton".into(),
+            amount: 20,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 144);
+        assert!(!fight.players.iter().any(|p| p.name == "You"));
+        assert!(!fight.players.iter().any(|p| p.name == "Yourself"));
+
+        let abilities: Vec<&str> = fight.players[0]
+            .abilities
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect();
+        assert!(abilities.iter().any(|n| *n == "hit"));
+        assert!(abilities
+            .iter()
+            .any(|n| *n == "Blood Siphon Strike"));
+        assert!(abilities.iter().any(|n| n.starts_with("Pet (Pet):")));
+        assert!(abilities
+            .iter()
+            .any(|n| n.starts_with("Pet (fire elemental):")));
+        let pet_total: u64 = fight.players[0]
+            .abilities
+            .iter()
+            .filter(|a| a.name.starts_with("Pet ("))
+            .map(|a| a.damage)
+            .sum();
+        assert_eq!(pet_total, 50);
+    }
+
+    #[test]
+    fn ignores_self_hurt_cannibalize() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // Out of combat cannibalize / DS self tick must not open a fight.
+        if let Some(event) = crate::parse::parse_line(
+            "[Fri Jul 10 21:25:09 2026] You hurt yourself for 3 points.",
+        ) {
+            tracker.ingest(event);
+        }
+        let snap = tracker.snapshot();
+        assert!(snap.active_fight.is_none());
+        assert!(snap.active_fights.is_empty());
     }
 }
 
