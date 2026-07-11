@@ -8,9 +8,32 @@ export type PendingUpdate = {
 };
 
 const RELEASES_PAGE = "https://github.com/kpxcoolx/eql-meter/releases/latest";
+const CHECK_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out. Try Open latest release instead.`));
+    }, ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 export async function checkForAppUpdate(): Promise<PendingUpdate | null> {
-  const update = await check();
+  const update = await withTimeout(
+    check({ timeout: CHECK_TIMEOUT_MS }),
+    CHECK_TIMEOUT_MS + 1000,
+    "Update check"
+  );
   if (!update) {
     return null;
   }
@@ -21,11 +44,15 @@ export async function checkForAppUpdate(): Promise<PendingUpdate | null> {
 }
 
 export async function installAppUpdate(): Promise<void> {
-  const update: Update | null = await check();
+  const update: Update | null = await withTimeout(
+    check({ timeout: CHECK_TIMEOUT_MS }),
+    CHECK_TIMEOUT_MS + 1000,
+    "Update check"
+  );
   if (!update) {
     throw new Error("No update available");
   }
-  await update.downloadAndInstall();
+  await update.downloadAndInstall(undefined, { timeout: 120_000 });
   await relaunch();
 }
 

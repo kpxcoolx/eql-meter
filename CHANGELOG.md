@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-07-11
+
+### Fixed
+
+- Check for updates no longer hangs forever on "Checking…" (12s timeout + always-available Latest release link).
+
 ## [0.1.6] — 2026-07-11
 
 ### Fixed
@@ -77,7 +83,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.7
 [0.1.6]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.6
 [0.1.5]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.5
 [0.1.4]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.4
