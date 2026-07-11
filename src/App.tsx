@@ -9,7 +9,8 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
-import { open, message, ask } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { formatDuration, liveRate, useLiveDuration } from "./useLiveDuration";
 import {
   checkForAppUpdate,
@@ -18,6 +19,14 @@ import {
   type PendingUpdate,
 } from "./updates";
 import "./App.css";
+
+type FoundLog = {
+  path: string;
+  character: string | null;
+  modified_secs: number;
+  size_bytes: number;
+  source: string;
+};
 
 export type AbilityStat = {
   name: string;
@@ -588,6 +597,12 @@ function App() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayClickThrough, setOverlayClickThrough] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+  const [logPickerOpen, setLogPickerOpen] = useState(false);
+  const [logCandidates, setLogCandidates] = useState<FoundLog[]>([]);
+  const [logPathDraft, setLogPathDraft] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [showBusyCancel, setShowBusyCancel] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string>("");
   const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(
@@ -771,6 +786,42 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  // Native dialogs / hung invokes can leave busy stuck. Auto-clear so the UI
+  // never requires Task Manager to become usable again.
+  useEffect(() => {
+    if (!busy) {
+      setShowBusyCancel(false);
+      return;
+    }
+    const showTimer = window.setTimeout(() => setShowBusyCancel(true), 2500);
+    const clearTimer = window.setTimeout(() => {
+      setBusy(false);
+      setShowBusyCancel(false);
+      setHint(
+        "That took too long and was cancelled. Try Auto-detect, or Menu → Choose log…"
+      );
+    }, 20000);
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [busy]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (busy) {
+        setBusy(false);
+        setHint("Cancelled. The app should respond again.");
+      }
+      if (confirmClear) setConfirmClear(false);
+      if (logPickerOpen) setLogPickerOpen(false);
+      if (menuOpen) setMenuOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [busy, confirmClear, logPickerOpen, menuOpen]);
+
   useEffect(() => {
     let cancelled = false;
     async function loadCombined() {
@@ -933,40 +984,87 @@ function App() {
       .reduce((sum, a) => sum + a.damage, 0);
   }, [selectedPlayerStat]);
 
-  const openLog = useCallback(async () => {
+  const openLogPicker = useCallback(async () => {
     setError(null);
-    // Do NOT set busy while the native file dialog is open — on Windows /
-    // Parallels it often sits behind EQ and would grey out the whole UI.
+    setHint(null);
+    setLogPickerOpen(true);
+    setConfirmClear(false);
+    try {
+      const found = await invoke<FoundLog[]>("find_logs");
+      setLogCandidates(found);
+      if (found.length === 0) {
+        setHint(
+          "No eqlog_*.txt found in the usual folders. Paste a full path below, or Browse…"
+        );
+      }
+    } catch (err) {
+      setError(String(err));
+      setLogCandidates([]);
+    }
+  }, []);
+
+  const startChosenLog = useCallback(
+    async (path: string) => {
+      const trimmed = path.trim();
+      if (!trimmed) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await startPath(trimmed, false);
+        setLogPickerOpen(false);
+        setLogPathDraft("");
+        setHint(null);
+        setToast("Monitoring log");
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [startPath]
+  );
+
+  const browseLogFile = useCallback(async () => {
+    setError(null);
+    setHint(
+      "Windows file picker is open. If you do not see it, Alt+Tab or check the taskbar — Esc cancels the picker."
+    );
+    try {
+      const win = getCurrentWindow();
+      await win.unminimize();
+      await win.setFocus();
+    } catch {
+      // ignore focus failures
+    }
+    // Let the hint paint before the OS modal freezes the window.
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
     try {
       const selected = await open({
         multiple: false,
         filters: [{ name: "EQ Log", extensions: ["txt"] }],
         title: "Choose EverQuest Legends log (eqlog_*.txt)",
       });
+      setHint(null);
       if (!selected || Array.isArray(selected)) {
         return;
       }
-      setBusy(true);
-      try {
-        await startPath(selected, false);
-        setToast("Monitoring log");
-      } finally {
-        setBusy(false);
-      }
+      await startChosenLog(selected);
     } catch (err) {
+      setHint(null);
       setError(String(err));
-      setBusy(false);
     }
-  }, [startPath]);
+  }, [startChosenLog]);
 
   const autoDetect = useCallback(async () => {
     setError(null);
+    setHint(null);
     setBusy(true);
     try {
       const found = await invoke<{ path: string; character: string | null }>(
         "auto_detect_log"
       );
       await startPath(found.path, false);
+      setToast("Monitoring log");
     } catch (err) {
       setError(String(err));
     } finally {
@@ -976,6 +1074,7 @@ function App() {
 
   const autoDetectParallels = useCallback(async () => {
     setError(null);
+    setHint(null);
     setBusy(true);
     try {
       const found = await invoke<{
@@ -1012,23 +1111,11 @@ function App() {
     const count =
       meter.active_fights.length + meter.recent_fights.length;
     if (count === 0) return;
+    setConfirmClear(true);
+  }, [meter.active_fights.length, meter.recent_fights.length]);
 
-    let confirmed = true;
-    try {
-      confirmed = await ask(
-        `Delete all ${count} fight${count === 1 ? "" : "s"} from the list?`,
-        {
-          title: "Clear fights",
-          kind: "warning",
-          okLabel: "Delete all",
-          cancelLabel: "Cancel",
-        }
-      );
-    } catch {
-      confirmed = true;
-    }
-    if (!confirmed) return;
-
+  const confirmClearFights = useCallback(async () => {
+    setConfirmClear(false);
     try {
       const next = await invoke<MeterState>("clear_fights");
       setMeter(next);
@@ -1037,15 +1124,11 @@ function App() {
       setSelectedFightIds(defaultSelectedFightIds(next));
       setCombinedFight(null);
       setSelectedPlayer(null);
-      setToast(
-        next.active_fights.length > 0
-          ? "Cleared history — live fights will keep appearing while monitoring"
-          : "Cleared all fights"
-      );
+      setToast("Cleared all fights");
     } catch (err) {
-      setError(`Clear fights failed: ${String(err)}`);
+      setError(String(err));
     }
-  }, [meter.active_fights.length, meter.recent_fights.length]);
+  }, []);
 
   const removeFight = useCallback(async (fightId: number) => {
     setFightContextMenu(null);
@@ -1064,19 +1147,13 @@ function App() {
   }, []);
 
   const showNotice = useCallback(
-    async (
-      title: string,
-      body: string,
-      kind: "info" | "warning" | "error" = "info"
-    ) => {
-      try {
-        await message(body, { title, kind, okLabel: "OK" });
-      } catch {
-        if (kind === "error") {
-          setError(`${title}: ${body}`);
-        } else {
-          setToast(`${title}: ${body}`);
-        }
+    (title: string, body: string, kind: "info" | "warning" | "error" = "info") => {
+      // Never use OS message boxes — on Windows they freeze the app if they
+      // open behind EverQuest / Parallels.
+      if (kind === "error") {
+        setError(`${title}: ${body}`);
+      } else {
+        setToast(`${title}: ${body}`);
       }
     },
     []
@@ -1143,12 +1220,12 @@ function App() {
       } else if (meter.recent_fights[0]) {
         fightId = meter.recent_fights[0].id;
       } else {
-        await showNotice("Copy Parse", "No fight to copy.", "warning");
+        showNotice("Copy Parse", "No fight to copy.", "warning");
         return;
       }
 
       if (fightIds && fightIds.length === 0) {
-        await showNotice("Copy Parse", "No fight to copy.", "warning");
+        showNotice("Copy Parse", "No fight to copy.", "warning");
         return;
       }
 
@@ -1158,12 +1235,12 @@ function App() {
       });
       const preview =
         text.length > 240 ? `${text.slice(0, 240)}…` : text;
-      await showNotice(
+      showNotice(
         "Copy Parse",
         `Copied to clipboard.\n\n${preview}`
       );
     } catch (err) {
-      await showNotice("Copy Parse failed", String(err), "error");
+      showNotice("Copy Parse failed", String(err), "error");
     }
   }, [
     selectedFightIds,
@@ -1371,7 +1448,7 @@ function App() {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => runMenuAction(() => openLog())}
+                  onClick={() => runMenuAction(() => void openLogPicker())}
                 >
                   Choose log…
                 </button>
@@ -1433,6 +1510,128 @@ function App() {
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
+      {hint ? (
+        <div className="hint-banner">
+          <span>{hint}</span>
+          <button type="button" className="linkish" onClick={() => setHint(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      {showBusyCancel ? (
+        <div className="hint-banner">
+          <span>Still working… Esc cancels if this hangs.</span>
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => {
+              setBusy(false);
+              setShowBusyCancel(false);
+              setHint("Cancelled. Try again if needed.");
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
+      {confirmClear ? (
+        <div className="hint-banner warn">
+          <span>
+            Delete all{" "}
+            {meter.active_fights.length + meter.recent_fights.length} fight
+            {meter.active_fights.length + meter.recent_fights.length === 1
+              ? ""
+              : "s"}
+            ?
+          </span>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void confirmClearFights()}
+          >
+            Delete all
+          </button>
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => setConfirmClear(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
+      {logPickerOpen ? (
+        <div className="log-picker">
+          <div className="log-picker-head">
+            <h2>Choose log</h2>
+            <button
+              type="button"
+              className="linkish"
+              onClick={() => setLogPickerOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <p className="log-picker-hint">
+            Pick a found eqlog, paste a path, or Browse… (Browse can hide behind
+            EQ — prefer the list when possible.)
+          </p>
+          {logCandidates.length > 0 ? (
+            <ul className="log-picker-list">
+              {logCandidates.slice(0, 12).map((log) => (
+                <li key={log.path}>
+                  <button
+                    type="button"
+                    className="log-picker-item"
+                    disabled={busy}
+                    onClick={() => void startChosenLog(log.path)}
+                  >
+                    <span className="log-picker-name">
+                      {log.character ?? "Unknown"}
+                      <span className="log-picker-source"> · {log.source}</span>
+                    </span>
+                    <span className="log-picker-path" title={log.path}>
+                      {shortPath(log.path)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="log-picker-empty">No logs found in usual folders.</p>
+          )}
+          <div className="log-picker-path-row">
+            <input
+              type="text"
+              className="log-picker-input"
+              placeholder="Or paste full path to eqlog_*.txt"
+              value={logPathDraft}
+              onChange={(event) => setLogPathDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void startChosenLog(logPathDraft);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy || !logPathDraft.trim()}
+              onClick={() => void startChosenLog(logPathDraft)}
+            >
+              Start
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => void browseLogFile()}
+            >
+              Browse…
+            </button>
+          </div>
+        </div>
+      ) : null}
       {pendingUpdate ? (
         <div className="update-banner">
           <span>
@@ -2247,7 +2446,7 @@ function App() {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => openLog()}
+                  onClick={() => void openLogPicker()}
                 >
                   Choose Log File
                 </button>
