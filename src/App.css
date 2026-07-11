@@ -428,6 +428,36 @@ input {
   color: var(--teal);
 }
 
+.fight-context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 140px;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(22, 18, 14, 0.98);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.fight-context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.fight-context-menu button:hover {
+  background: rgba(224, 168, 74, 0.16);
+  color: var(--amber-hot);
+}
+
 .fight-target {
   display: block;
   font-weight: 600;

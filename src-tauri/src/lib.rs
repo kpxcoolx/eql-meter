@@ -152,6 +152,19 @@ fn clear_fights(state: State<'_, Arc<AppState>>, app: AppHandle) -> MeterState {
 }
 
 #[tauri::command]
+fn remove_fight(
+    fight_id: u64,
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+) -> MeterState {
+    {
+        let mut tracker = state.tracker.lock();
+        tracker.remove_fight(fight_id);
+    }
+    emit_state(&state, &app)
+}
+
+#[tauri::command]
 fn stop_monitoring(state: State<'_, Arc<AppState>>, app: AppHandle) -> MeterState {
     if let Some(handle) = state.tail.lock().take() {
         handle.stop();
@@ -657,6 +670,7 @@ pub fn run() {
             stop_monitoring,
             reset_fight,
             clear_fights,
+            remove_fight,
             ingest_demo_lines,
             get_spells_status,
             load_spells_file,
