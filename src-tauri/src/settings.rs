@@ -32,7 +32,8 @@ pub struct AppSettings {
     pub focus_primary: bool,
     /// Drop finished fights below this total damage (0 = keep all).
     pub min_fight_damage: u64,
-    /// When true (default), ignore other players' combat lines in your log.
+    /// When true, ignore other players even on fights you opened.
+    /// Default false: show group DPS on your fights; ignore open-world noise.
     pub self_only: bool,
     pub main_window: Option<WindowGeometry>,
     pub overlay_window: Option<WindowGeometry>,
@@ -47,7 +48,7 @@ impl Default for AppSettings {
             auto_monitor_on_start: true,
             focus_primary: false,
             min_fight_damage: 0,
-            self_only: true,
+            self_only: false,
             main_window: None,
             overlay_window: None,
             spells_path: None,
