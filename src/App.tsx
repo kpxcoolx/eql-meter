@@ -935,19 +935,26 @@ function App() {
 
   const openLog = useCallback(async () => {
     setError(null);
-    setBusy(true);
+    // Do NOT set busy while the native file dialog is open — on Windows /
+    // Parallels it often sits behind EQ and would grey out the whole UI.
     try {
       const selected = await open({
         multiple: false,
         filters: [{ name: "EQ Log", extensions: ["txt"] }],
+        title: "Choose EverQuest Legends log (eqlog_*.txt)",
       });
       if (!selected || Array.isArray(selected)) {
         return;
       }
-      await startPath(selected, false);
+      setBusy(true);
+      try {
+        await startPath(selected, false);
+        setToast("Monitoring log");
+      } finally {
+        setBusy(false);
+      }
     } catch (err) {
       setError(String(err));
-    } finally {
       setBusy(false);
     }
   }, [startPath]);
@@ -1364,7 +1371,6 @@ function App() {
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={busy}
                   onClick={() => runMenuAction(() => openLog())}
                 >
                   Choose log…
@@ -2241,7 +2247,6 @@ function App() {
                 <button
                   type="button"
                   className="btn"
-                  disabled={busy}
                   onClick={() => openLog()}
                 >
                   Choose Log File
