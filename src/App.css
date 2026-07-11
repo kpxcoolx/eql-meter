@@ -673,29 +673,6 @@ input {
   margin-top: 0.75rem;
 }
 
-.misc-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin: 0.55rem 0 0.75rem;
-}
-
-.misc-filters button {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  padding: 0.25rem 0.55rem;
-  border-radius: 3px;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.misc-filters button.active {
-  color: var(--ink);
-  border-color: var(--amber);
-  background: rgba(196, 149, 74, 0.12);
-}
-
 .misc-list {
   list-style: none;
   margin: 0;
@@ -728,17 +705,6 @@ input {
 .misc-kind.loot {
   color: #d4b06a;
   border-color: rgba(212, 176, 106, 0.35);
-}
-
-.misc-kind.random,
-.misc-kind.roll {
-  color: #8eb8d4;
-  border-color: rgba(142, 184, 212, 0.35);
-}
-
-.misc-kind.chat {
-  color: #9bc49a;
-  border-color: rgba(155, 196, 154, 0.35);
 }
 
 .misc-body {

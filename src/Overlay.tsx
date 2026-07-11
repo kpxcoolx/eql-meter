@@ -9,6 +9,8 @@ import { liveRate, useLiveDuration } from "./useLiveDuration";
 export type OverlayStatus = {
   open: boolean;
   click_through: boolean;
+  x?: number | null;
+  y?: number | null;
 };
 
 type OverlayPrefs = {

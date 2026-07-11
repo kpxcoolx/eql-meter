@@ -9,7 +9,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, message } from "@tauri-apps/plugin-dialog";
 import { formatDuration, liveRate, useLiveDuration } from "./useLiveDuration";
 import {
   checkForAppUpdate,
@@ -600,10 +600,9 @@ function App() {
     fightId: number;
   } | null>(null);
   const [isMac, setIsMac] = useState(false);
-  const [meterTab, setMeterTab] = useState<"dps" | "heals" | "raid" | "misc">(
+  const [meterTab, setMeterTab] = useState<"dps" | "heals" | "raid" | "loot">(
     "dps"
   );
-  const [miscFilter, setMiscFilter] = useState<"all" | MiscKind>("all");
   const menuRef = useRef<HTMLDivElement | null>(null);
   const prevLiveCount = useRef(0);
   // When false, rail follows live combat (Combined on multi-mob pulls).
@@ -1027,17 +1026,51 @@ function App() {
     setCombinedFight(null);
   }, []);
 
+  const showNotice = useCallback(
+    async (
+      title: string,
+      body: string,
+      kind: "info" | "warning" | "error" = "info"
+    ) => {
+      try {
+        await message(body, { title, kind, okLabel: "OK" });
+      } catch {
+        if (kind === "error") {
+          setError(`${title}: ${body}`);
+        } else {
+          setToast(`${title}: ${body}`);
+        }
+      }
+    },
+    []
+  );
+
   const toggleOverlay = useCallback(async () => {
     try {
-      const status = await invoke<{ open: boolean; click_through: boolean }>(
-        "toggle_overlay"
-      );
+      const status = await invoke<{
+        open: boolean;
+        click_through: boolean;
+        x?: number | null;
+        y?: number | null;
+      }>("toggle_overlay");
       setOverlayOpen(status.open);
       setOverlayClickThrough(status.click_through);
+      if (status.open) {
+        const where =
+          status.x != null && status.y != null
+            ? `\nPosition: ${Math.round(status.x)}, ${Math.round(status.y)}`
+            : "";
+        await showNotice(
+          "Overlay",
+          `Overlay is open.${where}\n\nLook for a dark meter bar always on top. If you still do not see it, note the position above.`
+        );
+      } else {
+        await showNotice("Overlay", "Overlay closed.");
+      }
     } catch (err) {
-      setError(String(err));
+      await showNotice("Overlay failed", String(err), "error");
     }
-  }, []);
+  }, [showNotice]);
 
   const setClickThrough = useCallback(async (enabled: boolean) => {
     try {
@@ -1072,12 +1105,12 @@ function App() {
       } else if (meter.recent_fights[0]) {
         fightId = meter.recent_fights[0].id;
       } else {
-        setError("No fight to copy");
+        await showNotice("Copy Parse", "No fight to copy.", "warning");
         return;
       }
 
       if (fightIds && fightIds.length === 0) {
-        setError("No fight to copy");
+        await showNotice("Copy Parse", "No fight to copy.", "warning");
         return;
       }
 
@@ -1085,11 +1118,23 @@ function App() {
         fightId,
         fightIds,
       });
-      setToast(`Copied: ${text}`);
+      const preview =
+        text.length > 240 ? `${text.slice(0, 240)}…` : text;
+      await showNotice(
+        "Copy Parse",
+        `Copied to clipboard.\n\n${preview}`
+      );
     } catch (err) {
-      setError(String(err));
+      await showNotice("Copy Parse failed", String(err), "error");
     }
-  }, [selectedFightIds, displayedFight, meter.active_fights, meter.active_fight, meter.recent_fights]);
+  }, [
+    selectedFightIds,
+    displayedFight,
+    meter.active_fights,
+    meter.active_fight,
+    meter.recent_fights,
+    showNotice,
+  ]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -1194,14 +1239,11 @@ function App() {
   const maxHealSpell = displayedFight?.heal_spells[0]?.damage ?? 1;
   const isHealsTab = meterTab === "heals";
   const isRaidTab = meterTab === "raid";
-  const isMiscTab = meterTab === "misc";
+  const isLootTab = meterTab === "loot";
   const isCombatTab = meterTab === "dps" || meterTab === "heals";
   const showMeterShell =
-    Boolean(displayedFight) || isRaidTab || isMiscTab || meter.monitoring;
-  const filteredMisc = meter.misc_log.filter((entry) => {
-    if (miscFilter === "all") return true;
-    return entry.kind === miscFilter;
-  });
+    Boolean(displayedFight) || isRaidTab || isLootTab || meter.monitoring;
+  const lootEvents = meter.misc_log.filter((entry) => entry.kind === "loot");
 
   return (
     <div className="app">
@@ -1255,8 +1297,12 @@ function App() {
           <button
             type="button"
             className="btn"
-            disabled={!displayedFight}
-            onClick={copyParse}
+            disabled={
+              !displayedFight &&
+              meter.active_fights.length === 0 &&
+              meter.recent_fights.length === 0
+            }
+            onClick={() => void copyParse()}
             title="Copy a compact parse to the clipboard for chat"
           >
             Copy Parse
@@ -1264,7 +1310,7 @@ function App() {
           <button
             type="button"
             className={`btn ${overlayOpen ? "primary" : ""}`}
-            onClick={toggleOverlay}
+            onClick={() => void toggleOverlay()}
           >
             {overlayOpen ? "Close Overlay" : "Overlay"}
           </button>
@@ -1502,7 +1548,7 @@ function App() {
         <main className="meter-panel">
           {showMeterShell ? (
             <>
-              {displayedFight && !isRaidTab && !isMiscTab ? (
+              {displayedFight && !isRaidTab && !isLootTab ? (
                 <div className="fight-header">
                   <div>
                     <p className="eyebrow">
@@ -1597,10 +1643,10 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  className={meterTab === "misc" ? "active" : ""}
-                  onClick={() => setMeterTab("misc")}
+                  className={meterTab === "loot" ? "active" : ""}
+                  onClick={() => setMeterTab("loot")}
                 >
-                  Misc
+                  Loot
                 </button>
               </div>
 
@@ -1662,32 +1708,12 @@ function App() {
                 </div>
               ) : null}
 
-              {isMiscTab ? (
+              {isLootTab ? (
                 <div className="misc-panel">
-                  <p className="eyebrow">Loot · randoms · chat from the log</p>
-                  <div className="misc-filters">
-                    {(
-                      [
-                        ["all", "All"],
-                        ["loot", "Loot"],
-                        ["random", "Random"],
-                        ["roll", "Rolls"],
-                        ["chat", "Chat"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={miscFilter === value ? "active" : ""}
-                        onClick={() => setMiscFilter(value)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {filteredMisc.length > 0 ? (
+                  <p className="eyebrow">Loot from the log</p>
+                  {lootEvents.length > 0 ? (
                     <ul className="misc-list">
-                      {filteredMisc.map((entry, index) => (
+                      {lootEvents.map((entry, index) => (
                         <li key={`${entry.timestamp}-${entry.kind}-${index}`}>
                           <span className={`misc-kind ${entry.kind}`}>
                             {entry.kind}
@@ -1701,8 +1727,7 @@ function App() {
                     </ul>
                   ) : (
                     <p className="empty">
-                      No loot, rolls, or chat captured yet. Keep monitoring
-                      while the raid runs.
+                      No loot captured yet. Keep monitoring while the raid runs.
                     </p>
                   )}
                 </div>
@@ -2153,7 +2178,7 @@ function App() {
                 </>
               ) : isCombatTab ? (
                 <p className="empty">
-                  Waiting for combat. Raid and Misc tabs work anytime while
+                  Waiting for combat. Raid and Loot tabs work anytime while
                   monitoring.
                 </p>
               ) : null}
