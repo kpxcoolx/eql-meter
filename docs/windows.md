@@ -60,7 +60,7 @@ EQL Meter checks GitHub for a newer release on startup.
 | Install it | Banner **Install update**, or **Menu → Install …** |
 | Manual download | **Menu → Open latest release…** or [Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest) |
 
-The first time you need this updater, install **v0.1.4+** once by hand. Later updates can install from inside the app. Current release: **v0.1.8+**.
+The updater reads `latest.json` from the **Latest** GitHub release. CI only publishes a release after the installer + `latest.json` are attached, so Check for updates should never hit an empty release.
 
 ---
 
