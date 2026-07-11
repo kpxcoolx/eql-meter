@@ -664,31 +664,29 @@ impl FightTracker {
             return;
         }
 
-        // Mob swinging on your pet (e.g. "A knight hits Koner for 12…") must NOT
+        // Mob swinging on your pet (e.g. "Innoruuk's Chosen hits Kasarn…") must NOT
         // open a fight named after the pet. Learn the pet name and count it as taken.
-        if looks_like_npc(&dmg.attacker) && looks_like_combatant_name(&dmg.target) {
-            if !self.is_other_raid_player(&dmg.target) {
-                if let Some(owner) = self.character.clone() {
-                    if !dmg.target.eq_ignore_ascii_case(&owner) {
-                        self.note_pet(&dmg.target, &owner);
-                    }
+        if self.should_treat_as_pet_hit(&dmg.attacker, &dmg.target) {
+            if let Some(owner) = self.character.clone() {
+                if !dmg.target.eq_ignore_ascii_case(&owner) {
+                    self.note_pet(&dmg.target, &owner);
                 }
-                self.on_incoming(
-                    DamageEvent {
-                        timestamp: dmg.timestamp,
-                        time_secs: dmg.time_secs,
-                        incoming: true,
-                        attacker: dmg.attacker,
-                        target: "YOU".to_string(),
-                        amount: dmg.amount,
-                        hit_type: dmg.hit_type,
-                        spell: dmg.spell,
-                        modifiers: dmg.modifiers,
-                    },
-                    now,
-                );
-                return;
             }
+            self.on_incoming(
+                DamageEvent {
+                    timestamp: dmg.timestamp,
+                    time_secs: dmg.time_secs,
+                    incoming: true,
+                    attacker: dmg.attacker,
+                    target: "YOU".to_string(),
+                    amount: dmg.amount,
+                    hit_type: dmg.hit_type,
+                    spell: dmg.spell,
+                    modifiers: dmg.modifiers,
+                },
+                now,
+            );
+            return;
         }
 
         // Pet co-attacking the same NPC you're fighting → claim as your pet.
@@ -1082,8 +1080,25 @@ impl FightTracker {
             .any(|p| p.name.to_ascii_lowercase() == lower)
     }
 
-    /// If a combatant-looking name is hitting an NPC, treat it as our pet
-    /// (unless they're on the raid roster as another player).
+    /// Hits that land on your pet (not another raid player / not you).
+    fn should_treat_as_pet_hit(&self, attacker: &str, target: &str) -> bool {
+        if !looks_like_combatant_name(target) || self.is_other_raid_player(target) {
+            return false;
+        }
+        if let Some(me) = &self.character {
+            if target.eq_ignore_ascii_case(me) || attacker.eq_ignore_ascii_case(me) {
+                return false;
+            }
+        }
+        if is_self_label(attacker) || is_self_label(target) {
+            return false;
+        }
+        // Known pet, or an NPC (including named multi-word mobs) hitting a pet-like name.
+        self.is_owned_pet(target) || looks_like_npc(attacker)
+    }
+
+    /// If a combatant-looking name is hitting an NPC (or a fight you already opened),
+    /// treat it as our pet unless they're on the raid roster.
     fn maybe_claim_pet_attacker(&mut self, attacker: &str, target: &str) {
         let Some(owner) = self.character.clone() else {
             return;
@@ -1091,10 +1106,14 @@ impl FightTracker {
         if attacker.eq_ignore_ascii_case(&owner) || is_self_label(attacker) {
             return;
         }
-        if !looks_like_combatant_name(attacker) || !looks_like_npc(target) {
+        if !looks_like_combatant_name(attacker) {
             return;
         }
         if self.is_other_raid_player(attacker) || self.is_owned_pet(attacker) {
+            return;
+        }
+        let on_active_fight = self.active.contains_key(&fight_key(target));
+        if !looks_like_npc(target) && !on_active_fight {
             return;
         }
         self.note_pet(attacker, &owner);
@@ -1109,6 +1128,9 @@ struct ResolvedAttacker {
 
 fn looks_like_npc(name: &str) -> bool {
     let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
     let lower = trimmed.to_ascii_lowercase();
     if lower.starts_with("a ") || lower.starts_with("an ") || lower.starts_with("the ") {
         return true;
@@ -1116,10 +1138,12 @@ fn looks_like_npc(name: &str) -> bool {
     if lower.contains(" of ") {
         return true;
     }
-    false
+    // Named multi-word NPCs: "Innoruuk's Chosen", "Lord Nagafen".
+    // Single-token names stay ambiguous (pet / player / named mob).
+    trimmed.contains(' ')
 }
 
-/// Player / pet style names: "Koner", "Kenkyo" — not "a skeleton".
+/// Player / pet style names: "Kasarn", "Kenkyo" — not "a skeleton" / "Innoruuk's Chosen".
 fn looks_like_combatant_name(name: &str) -> bool {
     let trimmed = name.trim();
     if trimmed.is_empty() || is_self_label(trimmed) {
@@ -1758,6 +1782,49 @@ mod tests {
             .iter()
             .any(|a| a.name == "Pet (Koner): slash" && a.damage == 50));
         assert!(fight.damage_taken >= 12);
+    }
+
+    #[test]
+    fn named_mob_hitting_pet_does_not_list_pet_as_fight() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // Multi-word named mob hits single-token pet — used to open a "Kasarn" fight.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.0),
+            incoming: false,
+            attacker: "Innoruuk's Chosen".into(),
+            target: "Kasarn".into(),
+            amount: 27,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Kasarn".into(),
+            target: "Innoruuk's Chosen".into(),
+            amount: 40,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(hit(100.4, "Innoruuk's Chosen", 100));
+
+        let snap = tracker.snapshot();
+        assert!(
+            snap.active_fights.iter().all(|f| f.target != "Kasarn"),
+            "pet must not appear as a fight target"
+        );
+        assert_eq!(snap.active_fights.len(), 1);
+        assert_eq!(snap.active_fights[0].target, "Innoruuk's Chosen");
+        let fight = snap.active_fight.expect("mob fight");
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert!(fight.players[0].damage >= 140);
+        assert!(fight.damage_taken >= 27);
     }
 }
 

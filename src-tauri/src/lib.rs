@@ -35,6 +35,8 @@ struct AppState {
 struct OverlayStatus {
     open: bool,
     click_through: bool,
+    x: Option<f64>,
+    y: Option<f64>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -121,11 +123,8 @@ fn get_meter_state(state: State<'_, Arc<AppState>>) -> MeterState {
 }
 
 #[tauri::command]
-fn get_overlay_status(state: State<'_, Arc<AppState>>) -> OverlayStatus {
-    OverlayStatus {
-        open: *state.overlay_open.lock(),
-        click_through: *state.overlay_click_through.lock(),
-    }
+fn get_overlay_status(app: AppHandle, state: State<'_, Arc<AppState>>) -> OverlayStatus {
+    status(&app, state.inner())
 }
 
 #[tauri::command]
@@ -406,7 +405,7 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
         }
         *state.overlay_open.lock() = true;
         emit_overlay_status(&app, &state);
-        return Ok(status(&state));
+        return Ok(status(&app, &state));
     }
 
     *state.overlay_click_through.lock() = false;
@@ -419,46 +418,59 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
             .min_inner_size(300.0, 54.0)
             .resizable(false)
             .decorations(false)
-            .transparent(true)
-            .shadow(false)
-            .background_color(tauri::window::Color(0, 0, 0, 0))
             .always_on_top(true)
             .visible_on_all_workspaces(true)
             .skip_taskbar(true)
             .focused(false)
             .visible(true);
 
-    if let Some(geo) = settings.overlay_window.as_ref() {
-        let safe = place_overlay_on_screen(&app, geo);
-        if safe.x != geo.x || safe.y != geo.y {
-            let _ = remember_window(&app, "overlay", safe.clone());
-        }
+    // Windows WebView2 often fails with fully transparent windows (invisible or white).
+    // Use an opaque dark chrome there; Mac keeps true transparency.
+    #[cfg(target_os = "windows")]
+    {
         builder = builder
-            .position(safe.x, safe.y)
-            .inner_size(safe.width, safe.height);
+            .transparent(false)
+            .shadow(false)
+            .background_color(tauri::window::Color(18, 16, 14, 255));
     }
+    #[cfg(not(target_os = "windows"))]
+    {
+        builder = builder
+            .transparent(true)
+            .shadow(false)
+            .background_color(tauri::window::Color(0, 0, 0, 0));
+    }
+
+    // Always land on a visible monitor — saved coords from another display are common.
+    let seed = settings.overlay_window.clone().unwrap_or(WindowGeometry {
+        x: 80.0,
+        y: 80.0,
+        width: 380.0,
+        height: 56.0,
+    });
+    let safe = place_overlay_on_screen(&app, &seed);
+    builder = builder
+        .position(safe.x, safe.y)
+        .inner_size(safe.width.max(300.0), safe.height.max(54.0));
 
     let window = builder.build().map_err(|e| e.to_string())?;
 
     // Keep the meter floating above the game; re-assert after create.
     let _ = window.set_always_on_top(true);
     let _ = window.set_ignore_cursor_events(false);
+    #[cfg(target_os = "windows")]
+    let _ = window.set_background_color(Some(tauri::window::Color(18, 16, 14, 255)));
+    #[cfg(not(target_os = "windows"))]
     let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
 
-    // New windows can land on a weird default desktop position on Windows —
-    // always snap onto a real monitor after create.
-    if let Some(current) = capture_window_geometry(&window) {
-        let safe = place_overlay_on_screen(&app, &current);
-        if safe.x != current.x || safe.y != current.y {
-            apply_window_geometry(&window, &safe);
-            let _ = remember_window(&app, "overlay", safe);
-        }
-    }
+    apply_window_geometry(&window, &safe);
+    let _ = remember_window(&app, "overlay", safe);
     let _ = window.show();
+    let _ = window.set_focus();
 
     *state.overlay_open.lock() = true;
     emit_overlay_status(&app, &state);
-    Ok(status(&state))
+    Ok(status(&app, &state))
 }
 
 fn hide_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayStatus, String> {
@@ -472,7 +484,7 @@ fn hide_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayS
     *state.overlay_open.lock() = false;
     *state.overlay_click_through.lock() = false;
     emit_overlay_status(app, state);
-    Ok(status(state))
+    Ok(status(app, state))
 }
 
 #[tauri::command]
@@ -513,7 +525,7 @@ fn set_overlay_click_through(
     }
 
     emit_overlay_status(&app, &state);
-    Ok(status(&state))
+    Ok(status(&app, &state))
 }
 
 #[tauri::command]
@@ -578,15 +590,29 @@ fn apply_click_through(
     Ok(())
 }
 
-fn status(state: &Arc<AppState>) -> OverlayStatus {
+fn status(app: &AppHandle, state: &Arc<AppState>) -> OverlayStatus {
+    let open = *state.overlay_open.lock();
+    let click_through = *state.overlay_click_through.lock();
+    let mut x = None;
+    let mut y = None;
+    if open {
+        if let Some(window) = app.get_webview_window("overlay") {
+            if let Some(geo) = capture_window_geometry(&window) {
+                x = Some(geo.x);
+                y = Some(geo.y);
+            }
+        }
+    }
     OverlayStatus {
-        open: *state.overlay_open.lock(),
-        click_through: *state.overlay_click_through.lock(),
+        open,
+        click_through,
+        x,
+        y,
     }
 }
 
 fn emit_overlay_status(app: &AppHandle, state: &Arc<AppState>) {
-    let _ = app.emit("overlay-status", status(state));
+    let _ = app.emit("overlay-status", status(app, state));
 }
 
 fn emit_state(state: &Arc<AppState>, app: &AppHandle) -> MeterState {
