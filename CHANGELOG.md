@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-07-11
+
+### Changed
+
+- Relabeled **Misc** to **Loot** (loot only; chat / rolls removed from that tab).
+- **Copy Parse** and **Overlay** show a native confirmation dialog (success, position, or error).
+
+### Fixed
+
+- Pets like Kasarn no longer appear as fights when a named mob (e.g. Innoruuk's Chosen) hits them.
+- Windows overlay uses opaque chrome and always opens on a visible monitor; status reports open position.
+
 ## [0.1.7] — 2026-07-11
 
 ### Fixed
