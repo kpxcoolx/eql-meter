@@ -1,0 +1,46 @@
+# Changelog
+
+All notable changes to EQL Meter are documented here.
+
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows the GitHub release tags (`v0.1.x`). Releases currently ship a **Windows** NSIS installer only; there is no macOS `.dmg`.
+
+## [Unreleased]
+
+### Docs
+
+- Clarify that Mac has no packaged installer; Parallels users run from source (`docs/mac-parallels.md`, README).
+
+## [0.1.2] — 2026-07-11
+
+### Added
+
+- Right-click a fight in the Fights list to delete it (live or recent).
+
+### Fixed
+
+- Named pets (e.g. Koner) no longer appear as separate fights when mobs hit the pet.
+- Pet damage merges onto the character breakdown as `Pet (Name): …` abilities.
+
+## [0.1.1] — 2026-07-11
+
+### Fixed
+
+- Merge pet and DoT damage onto the character with pet ability breakdown in the UI.
+- Ignore self-hurt / cannibalize lines so they do not open a “Yourself” fight.
+
+## [0.1.0] — 2026-07-11
+
+### Added
+
+- Initial EQL Meter release: live combat log companion for EverQuest Legends.
+- Live fight tracking, multi-mob Combined view, ability breakdown, DPS chart.
+- Floating overlay with click-through.
+- Raid roster from `/who all raid`, Misc tab (loot / randoms / chat), Heals tab.
+- Group DPS bars when a raid roster is known.
+- Windows NSIS installer via GitHub Actions; remembers last log and window positions.
+- Mac + Parallels path: run from source and attach to the VM-mounted log.
+
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.2
+[0.1.1]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.1
+[0.1.0]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.0

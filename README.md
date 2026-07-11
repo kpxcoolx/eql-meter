@@ -4,16 +4,17 @@ Real-time combat meter for **EverQuest Legends**.
 
 It tails your character log (`eqlog_<Character>_<Server>.txt`), tracks live fights, and shows group DPS in a main window plus an always-on-top overlay.
 
-**Repo:** [github.com/kpxcoolx/eql-meter](https://github.com/kpxcoolx/eql-meter)
+**Repo:** [github.com/kpxcoolx/eql-meter](https://github.com/kpxcoolx/eql-meter)  
+**License:** [MIT](LICENSE.md)
 
 ## Which guide do I need?
 
 | You are… | Guide |
 |----------|--------|
 | **Playing on Windows** (normal) | [Windows](docs/windows.md) — download the `.exe` installer |
-| Developing on **Mac + Parallels** | [Mac + Parallels](docs/mac-parallels.md) |
+| **Mac + Parallels** (no Mac `.dmg`) | [Mac + Parallels](docs/mac-parallels.md) — run from source |
 
-Players on Windows should **never** need to clone the repo or run `npm`. That path is for contributors building the installer.
+Players on Windows should **never** need to clone the repo or run `npm`. GitHub Releases only ship the Windows installer; there is no macOS DMG.
 
 ## Features
 
@@ -51,7 +52,7 @@ npm install
 npm run tauri:dev
 ```
 
-- **macOS:** [Mac + Parallels](docs/mac-parallels.md) to attach to the VM log.
+- **macOS:** no packaged app — [Mac + Parallels](docs/mac-parallels.md) (`tauri:dev` + VM log).
 - **Windows:** [Windows](docs/windows.md) — use **Find Legends log**.
 
 ### Ship a Windows installer for players

@@ -4,12 +4,20 @@ Use this when **EverQuest Legends runs in a Windows VM** (Parallels) and **EQL M
 
 The meter reads the Windows log file through the mounted `C:` volume under `/Volumes`.
 
+## No Mac installer
+
+There is **no macOS `.dmg` (or other Mac package)** on GitHub Releases. Releases only ship the **Windows** NSIS `.exe`.
+
+On Mac you always run from source (`npm run tauri:dev` below). That is the supported Mac path for Parallels dogfooding — not a missing download.
+
+Windows players should use the installer: [Windows](windows.md).
+
 ## Requirements
 
 - Parallels Desktop with a Windows VM
 - EverQuest Legends installed in that VM
 - Logging enabled in EQ Legends
-- Node.js 22+ and Rust (for `npm run tauri:dev` / local builds)
+- Node.js 22+ and Rust (to build and run the meter locally)
 
 ## One-time setup
 
@@ -26,12 +34,16 @@ The meter reads the Windows log file through the mounted `C:` volume under `/Vol
 
 ## Run the meter on Mac
 
+Clone and run in dev mode (this is how you get the app on Mac):
+
 ```bash
 git clone https://github.com/kpxcoolx/eql-meter.git
 cd eql-meter
 npm install
 npm run tauri:dev
 ```
+
+There is no published Mac build step to skip this.
 
 ## Attach to the live log
 
