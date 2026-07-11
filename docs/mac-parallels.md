@@ -79,8 +79,8 @@ There is no packaged Mac build to download instead.
 
 | Control | Action |
 |---------|--------|
-| **Overlay** | Open floating meter |
-| **Menu → Overlay → Click-through** | Clicks reach EQ in the VM |
+| **Overlay** | Open / close floating meter (confirmation popup) |
+| Click-through (Menu) | Clicks reach EQ in the VM |
 | `Cmd+Shift+U` | Overlay clickable |
 | `Cmd+Shift+L` | Click-through to game |
 
@@ -106,8 +106,14 @@ Run EQ **windowed / borderless** in the VM so you can see the Mac overlay.
 | Situation | What to do |
 |-----------|------------|
 | Quiet after VM sleep | **Live Parallels** or **Resume last log** again |
-| Bad / pet-named fight in the list | Right-click → **Delete fight** |
-| No game handy | **Menu → Extras → Load sample fight** |
+| Pet still listed as a fight | Update / pull latest; or right-click → **Delete fight** |
+| Share a parse | **Copy Parse** (confirmation popup) |
+| Loot lines | **Loot** tab |
+| No game handy | Load a sample log from [`samples/`](../samples/) if available |
+
+### Faster local testing (Mac)
+
+Use `npm run tauri:dev` on the Mac for UI / parse / pet fixes. Only build a Windows installer when you need to verify Overlay on Windows.
 
 Parallels mounts are not always perfect for file events — the meter polls so appends still show up.
 

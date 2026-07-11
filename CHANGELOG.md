@@ -95,7 +95,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.8
 [0.1.7]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.7
 [0.1.6]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.6
 [0.1.5]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.5
