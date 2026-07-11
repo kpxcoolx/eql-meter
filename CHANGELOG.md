@@ -8,7 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ### Docs
 
-- Clarify that Mac has no packaged installer; Parallels users run from source (`docs/mac-parallels.md`, README).
+- Rework README / Windows / Mac guides for clearer “start here” flow and a single hero screenshot.
+- Clarify that Mac has no packaged installer; Parallels users run from source.
 
 ## [0.1.2] — 2026-07-11
 
