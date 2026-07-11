@@ -6,10 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
-### Docs
+## [0.1.3] — 2026-07-11
 
-- Rework README / Windows / Mac guides for clearer “start here” flow and a single hero screenshot.
-- Clarify that Mac has no packaged installer; Parallels users run from source.
+### Added
+
+- **Clear all** on the Fights rail to wipe active and recent fights.
+
+### Fixed
+
+- Windows: stop console windows flashing every few seconds (`tasklist` now runs hidden).
+- Windows: overlay no longer shows as a white opaque box (transparent WebView background).
+- Closing the main window now closes the overlay and fully exits the app.
 
 ## [0.1.2] — 2026-07-11
 

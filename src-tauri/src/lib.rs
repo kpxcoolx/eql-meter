@@ -354,6 +354,8 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
         .resizable(false)
         .decorations(false)
         .transparent(true)
+        .shadow(false)
+        .background_color(tauri::window::Color(0, 0, 0, 0))
         .always_on_top(true)
         .visible_on_all_workspaces(true)
         .skip_taskbar(true)
@@ -371,6 +373,7 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
     // Keep the meter floating above the game; re-assert after create.
     let _ = window.set_always_on_top(true);
     let _ = window.set_ignore_cursor_events(false);
+    let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
 
     *state.overlay_open.lock() = true;
     emit_overlay_status(&app, &state);
@@ -568,6 +571,19 @@ pub fn run() {
                         persist_window_geometry(window.app_handle(), &label);
                     }
                 }
+                WindowEvent::CloseRequested { .. } => {
+                    // Overlay is a second window. If main closes while it is open,
+                    // Tauri keeps the process alive — white box + EQ watcher stay.
+                    if window.label() != "main" {
+                        return;
+                    }
+                    let app = window.app_handle().clone();
+                    persist_window_geometry(&app, "main");
+                    if let Some(app_state) = app.try_state::<Arc<AppState>>() {
+                        let _ = hide_overlay_inner(&app, app_state.inner());
+                    }
+                    app.exit(0);
+                }
                 WindowEvent::Destroyed => {
                     if window.label() != "overlay" {
                         return;
@@ -641,13 +657,17 @@ pub fn run() {
                 let handle = app.handle().clone();
                 std::thread::spawn(move || loop {
                     std::thread::sleep(Duration::from_secs(4));
-                    if eq_process::is_eq_running() {
-                        continue;
+                    // App exited (main close tears everything down).
+                    if handle.webview_windows().is_empty() {
+                        break;
                     }
                     let Some(state) = handle.try_state::<Arc<AppState>>() else {
-                        continue;
+                        break;
                     };
                     if !*state.overlay_open.lock() {
+                        continue;
+                    }
+                    if eq_process::is_eq_running() {
                         continue;
                     }
                     let _ = hide_overlay_inner(&handle, state.inner());
