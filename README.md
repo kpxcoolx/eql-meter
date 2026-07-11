@@ -67,7 +67,7 @@ npm run tauri:dev
 
 ### Ship a Windows installer
 
-Do not ask players to build. From GitHub: **Actions → windows-build → Run workflow** (e.g. `v0.1.3`), then **publish the draft release**.
+Do not ask players to build. From GitHub: **Actions → windows-build → Run workflow** (e.g. `v0.1.4`), then **publish the draft release**. Requires repo secrets `TAURI_SIGNING_PRIVATE_KEY` (and optional password) so the updater can sign installs.
 
 Or tag: `git tag v0.1.3 && git push origin v0.1.3`
 

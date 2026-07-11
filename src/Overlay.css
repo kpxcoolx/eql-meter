@@ -23,6 +23,30 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(224, 168, 74, 0.35) rgba(18, 16, 14, 0.9);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(12, 10, 8, 0.6);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(224, 168, 74, 0.4);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(240, 197, 106, 0.55);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 html,

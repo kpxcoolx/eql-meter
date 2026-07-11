@@ -47,6 +47,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ steps.ver.outputs.tag }}
           releaseName: EQL Meter ${{ steps.ver.outputs.tag }}
@@ -57,7 +59,11 @@ jobs:
             2. Start EQL Meter → **Find Legends log**.
             3. Open **Overlay** and enable click-through.
 
+            After this build, use **Menu → Check for updates** for future releases.
+
             Full guide: docs/windows.md
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: --bundles nsis

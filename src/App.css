@@ -25,6 +25,44 @@
   box-sizing: border-box;
 }
 
+/* Match the dark amber chrome — default OS bars clash hard on Windows. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(224, 168, 74, 0.35) rgba(18, 16, 14, 0.9);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(12, 10, 8, 0.85);
+  border-left: 1px solid rgba(232, 196, 120, 0.08);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(224, 168, 74, 0.42),
+    rgba(168, 120, 48, 0.55)
+  );
+  border: 2px solid rgba(12, 10, 8, 0.9);
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(240, 197, 106, 0.55),
+    rgba(224, 168, 74, 0.7)
+  );
+}
+
+*::-webkit-scrollbar-corner {
+  background: rgba(12, 10, 8, 0.85);
+}
+
 html,
 body,
 #root {
@@ -194,37 +232,38 @@ input {
 .menu-caret {
   font-size: 0.7rem;
   opacity: 0.8;
+  transition: transform 120ms ease;
+}
+
+.menu-trigger.open .menu-caret {
+  transform: rotate(180deg);
 }
 
 .menu-panel {
   position: absolute;
-  top: calc(100% + 0.4rem);
+  top: calc(100% + 0.45rem);
   right: 0;
   z-index: 40;
-  width: 240px;
-  padding: 0.45rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: rgba(22, 18, 14, 0.98);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(10px);
+  width: min(240px, calc(100vw - 1.5rem));
+  padding: 0.35rem;
+  border: 1px solid rgba(232, 196, 120, 0.28);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #1c1814 0%, #14110e 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 18px 40px rgba(0, 0, 0, 0.55);
+  animation: menu-in 140ms ease-out;
 }
 
-.menu-section {
-  padding: 0.35rem 0.2rem 0.45rem;
-}
-
-.menu-section + .menu-section {
-  border-top: 1px solid var(--line);
-}
-
-.menu-label {
-  margin: 0 0 0.35rem 0.35rem;
-  color: var(--muted);
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .menu-panel button {
@@ -234,27 +273,41 @@ input {
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 0.5rem 0.55rem;
+  padding: 0.45rem 0.55rem;
   border-radius: 4px;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  line-height: 1.25;
 }
 
 .menu-panel button:hover:not(:disabled) {
-  background: rgba(224, 168, 74, 0.12);
+  background: rgba(224, 168, 74, 0.14);
+  color: #f8f0e4;
 }
 
 .menu-panel button:disabled {
-  opacity: 0.4;
+  opacity: 0.38;
   cursor: not-allowed;
 }
 
-.menu-hint {
-  margin: 0.35rem 0.35rem 0;
+.menu-item-accent {
+  color: var(--amber) !important;
+  font-weight: 600;
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 0.3rem 0.4rem;
+  background: rgba(232, 196, 120, 0.14);
+}
+
+.menu-footer {
+  margin: 0;
+  padding: 0.35rem 0.55rem 0.25rem;
   color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
 }
 
 .error-banner {
@@ -274,6 +327,25 @@ input {
   color: #d7ebe3;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+.update-banner {
+  margin: 0.75rem 1.25rem 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(224, 168, 74, 0.45);
+  background: rgba(224, 168, 74, 0.12);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.update-banner .btn {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 .taken-summary {

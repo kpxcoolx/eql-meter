@@ -7,9 +7,16 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { formatDuration, liveRate, useLiveDuration } from "./useLiveDuration";
+import {
+  checkForAppUpdate,
+  installAppUpdate,
+  openLatestReleasePage,
+  type PendingUpdate,
+} from "./updates";
 import "./App.css";
 
 export type AbilityStat = {
@@ -265,44 +272,6 @@ function isCombinedSelection(ids: number[], meter: MeterState): boolean {
   }
   return ids.length >= 2;
 }
-
-const DEMO_LINES = [
-  "[Fri Jul 10 21:30:10 2026] [60 Shadow Knight (Shadow Knight)] Francis (Group: 1)",
-  "[Fri Jul 10 21:30:10 2026] [60 Ranger (Ranger)] Mira (Group: 1)",
-  "[Fri Jul 10 21:30:10 2026] [60 Warrior (Warrior)] Torin (Group: 2)",
-  "[Fri Jul 10 21:30:10 2026] [60 Wizard (Wizard)] Kael (Group: 2)",
-  "[Fri Jul 10 21:30:10 2026] [60 Cleric (Cleric)] Lira (Group: 1)",
-  "[Fri Jul 10 21:30:10 2026] There are 5 players in your raid.",
-  "[Fri Jul 10 21:30:14 2026] You hit a goblin warrior for 42 points of damage.",
-  "[Fri Jul 10 21:30:14 2026] Mira slashes a goblin warrior for 88 points of damage.",
-  "[Fri Jul 10 21:30:15 2026] Torin crushes a goblin warrior for 156 points of damage. (Critical)",
-  "[Fri Jul 10 21:30:15 2026] You hit a goblin warrior for 51 points of damage.",
-  "[Fri Jul 10 21:30:16 2026] A goblin warrior has taken 55 damage from Flame Lick by You.",
-  "[Fri Jul 10 21:30:16 2026] Mira slashes a goblin warrior for 79 points of damage.",
-  "[Fri Jul 10 21:30:16 2026] Lira healed Francis for 120 hit points by Greater Healing.",
-  "[Fri Jul 10 21:30:17 2026] Kael hit a goblin warrior for 210 points of non-melee damage. (Critical)",
-  "[Fri Jul 10 21:30:17 2026] Torin crushes a goblin warrior for 101 points of damage.",
-  "[Fri Jul 10 21:30:18 2026] You hit a goblin warrior for 47 points of damage.",
-  "[Fri Jul 10 21:30:18 2026] Mira's ice comet hits a goblin warrior for 340 points of non-melee damage.",
-  "[Fri Jul 10 21:30:18 2026] Lira healed Torin for 88 (140) hit points by Light Healing.",
-  "[Fri Jul 10 21:30:19 2026] A goblin warrior has taken 55 damage from Flame Lick by You.",
-  "[Fri Jul 10 21:30:19 2026] Torin crushes a goblin warrior for 143 points of damage. (Critical)",
-  "[Fri Jul 10 21:30:20 2026] Kael hit a goblin warrior for 185 points of non-melee damage.",
-  "[Fri Jul 10 21:30:20 2026] You hit a goblin warrior for 63 points of damage. (Critical)",
-  "[Fri Jul 10 21:30:21 2026] Mira slashes a goblin warrior for 92 points of damage.",
-  "[Fri Jul 10 21:30:21 2026] A goblin warrior has taken 55 damage from Flame Lick by You.",
-  "[Fri Jul 10 21:30:22 2026] Torin crushes a goblin warrior for 118 points of damage.",
-  "[Fri Jul 10 21:30:23 2026] Kael hit a goblin warrior for 198 points of non-melee damage.",
-  "[Fri Jul 10 21:30:24 2026] You hit a goblin warrior for 44 points of damage.",
-  "[Fri Jul 10 21:30:24 2026] Mira slashes a goblin warrior for 85 points of damage.",
-  "[Fri Jul 10 21:30:24 2026] Lira healed Mira for 95 hit points by Greater Healing.",
-  "[Fri Jul 10 21:30:25 2026] A goblin warrior has been slain by Torin!",
-  "[Fri Jul 10 21:30:26 2026] Francis looted a Platinum Ring from a goblin warrior's corpse.",
-  "[Fri Jul 10 21:30:26 2026] **Random Number: 0 to 100**",
-  "[Fri Jul 10 21:30:27 2026] Mira rolls 87 (0-100)",
-  "[Fri Jul 10 21:30:27 2026] Torin rolls 42 (0-100)",
-  "[Fri Jul 10 21:30:28 2026] Kael tells the raid, 'nice pull'",
-];
 
 function formatNumber(n: number): string {
   return Math.round(n).toLocaleString();
@@ -618,10 +587,13 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [overlayClickThrough, setOverlayClickThrough] = useState(false);
-  const [lastLogPath, setLastLogPath] = useState<string | null>(null);
-  const [minFightDamage, setMinFightDamage] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>("");
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(
+    null
+  );
+  const [updateBusy, setUpdateBusy] = useState(false);
   const [fightContextMenu, setFightContextMenu] = useState<{
     x: number;
     y: number;
@@ -646,7 +618,6 @@ function App() {
         fromStart,
       });
       setMeter(next);
-      setLastLogPath(path);
       selectionPinned.current = false;
       prevLiveCount.current = next.active_fights.length;
       setSelectedFightIds(defaultSelectedFightIds(next));
@@ -681,8 +652,6 @@ function App() {
 
     invoke<AppSettings>("get_settings")
       .then(async (settings) => {
-        setLastLogPath(settings.last_log_path);
-        setMinFightDamage(settings.min_fight_damage);
         if (
           settings.auto_monitor_on_start &&
           settings.last_log_path
@@ -722,6 +691,60 @@ function App() {
       unlistenOverlay.then((fn) => fn());
       unlistenToast.then((fn) => fn());
     };
+  }, []);
+
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(""));
+
+    // Quiet startup check — only surface a banner when something is available.
+    checkForAppUpdate()
+      .then((update) => {
+        if (update) {
+          setPendingUpdate(update);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const runUpdateCheck = useCallback(async () => {
+    setUpdateBusy(true);
+    setError(null);
+    try {
+      const update = await checkForAppUpdate();
+      if (!update) {
+        setPendingUpdate(null);
+        setToast(
+          appVersion
+            ? `You're on the latest version (${appVersion})`
+            : "You're on the latest version"
+        );
+        return;
+      }
+      setPendingUpdate(update);
+      setToast(`Update ${update.version} is available`);
+    } catch (err) {
+      setError(
+        `Could not check for updates. Open the latest release page instead. (${String(err)})`
+      );
+    } finally {
+      setUpdateBusy(false);
+    }
+  }, [appVersion]);
+
+  const runInstallUpdate = useCallback(async () => {
+    setUpdateBusy(true);
+    setError(null);
+    setToast("Downloading update…");
+    try {
+      await installAppUpdate();
+    } catch (err) {
+      setError(
+        `Update install failed. Try the release page instead. (${String(err)})`
+      );
+      setUpdateBusy(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -883,28 +906,6 @@ function App() {
     ? liveRate(displayedFight.damage_taken, liveDuration)
     : 0;
 
-  const saveFightOptions = useCallback(
-    async (nextMin: number) => {
-      setMinFightDamage(nextMin);
-      try {
-        const saved = await invoke<AppSettings>("save_app_settings", {
-          settings: {
-            last_log_path: lastLogPath,
-            auto_monitor_on_start: true,
-            focus_primary: false,
-            min_fight_damage: nextMin,
-          },
-        });
-        setMinFightDamage(saved.min_fight_damage);
-        const next = await invoke<MeterState>("get_meter_state");
-        setMeter(next);
-      } catch (err) {
-        setError(String(err));
-      }
-    },
-    [lastLogPath]
-  );
-
   useEffect(() => {
     if (!displayedFight) {
       setSelectedPlayer(null);
@@ -935,7 +936,7 @@ function App() {
       .reduce((sum, a) => sum + a.damage, 0);
   }, [selectedPlayerStat]);
 
-  const openLog = useCallback(async (fromStart: boolean) => {
+  const openLog = useCallback(async () => {
     setError(null);
     setBusy(true);
     try {
@@ -947,7 +948,7 @@ function App() {
         setBusy(false);
         return;
       }
-      await startPath(selected, fromStart);
+      await startPath(selected, false);
     } catch (err) {
       setError(String(err));
       setBusy(false);
@@ -989,11 +990,6 @@ function App() {
     }
   }, [startPath]);
 
-  const resumeLast = useCallback(async () => {
-    if (!lastLogPath) return;
-    await startPath(lastLogPath, false);
-  }, [lastLogPath, startPath]);
-
   const stop = useCallback(async () => {
     setBusy(true);
     try {
@@ -1004,15 +1000,6 @@ function App() {
     } finally {
       setBusy(false);
     }
-  }, []);
-
-  const resetFight = useCallback(async () => {
-    const next = await invoke<MeterState>("reset_fight");
-    setMeter(next);
-    selectionPinned.current = false;
-    prevLiveCount.current = next.active_fights.length;
-    setSelectedFightIds(defaultSelectedFightIds(next));
-    setCombinedFight(null);
   }, []);
 
   const clearFights = useCallback(async () => {
@@ -1038,52 +1025,6 @@ function App() {
       selectionPinned.current = false;
       return defaultSelectedFightIds(next);
     });
-    setCombinedFight(null);
-  }, []);
-
-  const loadSpellsFile = useCallback(async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const selected = await open({
-        multiple: false,
-        filters: [{ name: "Ability names", extensions: ["txt"] }],
-      });
-      if (!selected || Array.isArray(selected)) {
-        setBusy(false);
-        return;
-      }
-      await invoke("load_spells_file", { path: selected });
-      const next = await invoke<MeterState>("get_meter_state");
-      setMeter(next);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  const clearSpellsFile = useCallback(async () => {
-    setError(null);
-    try {
-      await invoke("clear_spells_file");
-      const next = await invoke<MeterState>("get_meter_state");
-      setMeter(next);
-    } catch (err) {
-      setError(String(err));
-    }
-  }, []);
-
-  const runDemo = useCallback(async () => {
-    setError(null);
-    await invoke<MeterState>("clear_fights");
-    const next = await invoke<MeterState>("ingest_demo_lines", {
-      lines: DEMO_LINES,
-    });
-    setMeter(next);
-    selectionPinned.current = false;
-    prevLiveCount.current = next.active_fights.length;
-    setSelectedFightIds(defaultSelectedFightIds(next));
     setCombinedFight(null);
   }, []);
 
@@ -1320,173 +1261,56 @@ function App() {
 
             {menuOpen ? (
               <div className="menu-panel" role="menu">
-                <div className="menu-section">
-                  <p className="menu-label">Monitor</p>
-                  {isMac ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => runMenuAction(autoDetectParallels)}
-                    >
-                      Live Parallels log
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => runMenuAction(autoDetect)}
-                    >
-                      Find Legends log
-                    </button>
-                  )}
-                  {isMac ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => runMenuAction(autoDetect)}
-                    >
-                      Find any eqlog…
-                    </button>
-                  ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  onClick={() => runMenuAction(() => openLog())}
+                >
+                  Choose log…
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!meter.monitoring || busy}
+                  onClick={() => runMenuAction(stop)}
+                >
+                  Stop monitoring
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!overlayOpen}
+                  onClick={() =>
+                    runMenuAction(() => setClickThrough(!overlayClickThrough))
+                  }
+                  title="Ctrl/Cmd+Shift+U clickable · L click-through"
+                >
+                  {overlayClickThrough ? "Make overlay clickable" : "Click-through to game"}
+                </button>
+                <div className="menu-divider" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={updateBusy}
+                  onClick={() => runMenuAction(runUpdateCheck)}
+                >
+                  {updateBusy ? "Checking…" : "Check for updates"}
+                </button>
+                {pendingUpdate ? (
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={busy}
-                    onClick={() => runMenuAction(() => openLog(false))}
+                    className="menu-item-accent"
+                    disabled={updateBusy}
+                    onClick={() => runMenuAction(runInstallUpdate)}
                   >
-                    Choose log…
+                    Install {pendingUpdate.version}
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={busy}
-                    onClick={() => runMenuAction(() => openLog(true))}
-                  >
-                    Replay whole log…
-                  </button>
-                  {lastLogPath ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={busy || meter.monitoring}
-                      onClick={() => runMenuAction(resumeLast)}
-                      title={lastLogPath}
-                    >
-                      Resume last log
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!meter.monitoring || busy}
-                    onClick={() => runMenuAction(stop)}
-                  >
-                    Stop monitoring
-                  </button>
-                </div>
-
-                <div className="menu-section">
-                  <p className="menu-label">Overlay</p>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => runMenuAction(toggleOverlay)}
-                  >
-                    {overlayOpen ? "Close overlay" : "Open overlay"}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!overlayOpen}
-                    onClick={() =>
-                      runMenuAction(() => setClickThrough(!overlayClickThrough))
-                    }
-                  >
-                    {overlayClickThrough
-                      ? "Make overlay clickable"
-                      : "Click-through to game"}
-                  </button>
-                  <p className="menu-hint">
-                    Hotkeys: Ctrl/Cmd+Shift+U clickable · L click-through
-                  </p>
-                </div>
-
-                <div className="menu-section">
-                  <p className="menu-label">Combat</p>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!displayedFight}
-                    onClick={() => runMenuAction(copyParse)}
-                  >
-                    Copy parse for chat
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => runMenuAction(resetFight)}
-                  >
-                    End current fight
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => runMenuAction(clearFights)}
-                  >
-                    Clear fight history
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() =>
-                      runMenuAction(() =>
-                        saveFightOptions(minFightDamage > 0 ? 0 : 1000)
-                      )
-                    }
-                  >
-                    {minFightDamage > 0
-                      ? `Skip tiny fights (<${minFightDamage}): on`
-                      : "Skip tiny fights (<1000): off"}
-                  </button>
-                </div>
-
-                <div className="menu-section">
-                  <p className="menu-label">Extras</p>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={busy}
-                    onClick={() => runMenuAction(loadSpellsFile)}
-                  >
-                    {meter.spells_count > 0
-                      ? `Reload ability names (${meter.spells_count})`
-                      : "Load ability names…"}
-                  </button>
-                  {meter.spells_count > 0 ? (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={busy}
-                      onClick={() => runMenuAction(clearSpellsFile)}
-                    >
-                      Clear ability names
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => runMenuAction(runDemo)}
-                  >
-                    Load sample fight
-                  </button>
-                  <p className="menu-hint">
-                    Ability names are optional — only needed if logs show spell
-                    IDs instead of names.
-                  </p>
-                </div>
+                ) : null}
+                {appVersion ? (
+                  <p className="menu-footer">Version {appVersion}</p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1494,6 +1318,30 @@ function App() {
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
+      {pendingUpdate ? (
+        <div className="update-banner">
+          <span>
+            Update <strong>{pendingUpdate.version}</strong> is available
+            {appVersion ? ` (you have ${appVersion})` : ""}.
+          </span>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={updateBusy}
+            onClick={() => void runInstallUpdate()}
+          >
+            {updateBusy ? "Updating…" : "Install update"}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={updateBusy}
+            onClick={() => void openLatestReleasePage()}
+          >
+            Release notes
+          </button>
+        </div>
+      ) : null}
       {toast ? <div className="toast-banner">{toast}</div> : null}
 
       <div className="layout">
@@ -2309,7 +2157,7 @@ function App() {
                   type="button"
                   className="btn"
                   disabled={busy}
-                  onClick={() => openLog(false)}
+                  onClick={() => openLog()}
                 >
                   Choose Log File
                 </button>
