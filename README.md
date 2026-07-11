@@ -69,13 +69,18 @@ npm run tauri:dev
 
 ### Ship a Windows installer
 
-Do not ask players to build. Tag a version (bumps `package.json` / `tauri.conf.json` / `Cargo.toml` first), then push:
+Do not ask players to build. Do **not** create a GitHub Release by hand before CI finishes — empty releases break **Check for updates**.
+
+1. Bump `package.json` / `tauri.conf.json` / `Cargo.toml`
+2. Commit, then tag and push:
 
 ```bash
-git tag v0.1.8 && git push origin v0.1.8
+git tag v0.1.14 && git push origin v0.1.14
 ```
 
-Or from GitHub: **Actions → windows-build → Run workflow** with the tag (e.g. `v0.1.8`), then **publish the draft release** if needed. Requires repo secrets `TAURI_SIGNING_PRIVATE_KEY` (and optional password) so the updater can sign installs.
+CI builds a **draft** with the NSIS `.exe`, `.sig`, and `latest.json`, then **publishes only if those assets exist**. Until then, `/releases/latest` still points at the previous good build.
+
+Or: **Actions → windows-build → Run workflow** with the tag. Requires `TAURI_SIGNING_PRIVATE_KEY` (and optional password).
 
 Local NSIS (on Windows):
 

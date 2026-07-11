@@ -43,7 +43,9 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build Windows installer
+      # Always create a DRAFT first. Publishing happens only after we verify
+      # the NSIS installer + latest.json exist — never leave a broken "Latest".
+      - name: Build Windows installer (draft release)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,14 +58,32 @@ jobs:
             Windows installer for EQL Meter.
 
             1. Run the NSIS `.exe` (current-user install; no admin required).
-            2. Start EQL Meter → **Find Legends log**.
+            2. Start EQL Meter → **Auto-detect** / **Choose log…**.
             3. Open **Overlay** and enable click-through.
 
             After this build, use **Menu → Check for updates** for future releases.
 
             Full guide: docs/windows.md
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           args: --bundles nsis
+
+      - name: Publish only if updater assets are complete
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          echo "Checking assets on $TAG…"
+          assets="$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')"
+          echo "$assets"
+          echo "$assets" | grep -E 'setup\.exe$' >/dev/null
+          echo "$assets" | grep -E 'setup\.exe\.sig$' >/dev/null
+          echo "$assets" | grep -x 'latest.json' >/dev/null
+          gh release edit "$TAG" --draft=false
+          echo "Published $TAG"
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/latest.json" \
+            | python -c "import sys,json; d=json.load(sys.stdin); print('updater feed version:', d.get('version'))"
