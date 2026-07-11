@@ -736,8 +736,9 @@ function App() {
       setToast(`Update ${update.version} is available`);
     } catch (err) {
       setPendingUpdate(null);
+      const msg = String(err).replace(/^Error:\s*/, "");
       setToast("Update check failed — use Latest release…");
-      setError(String(err));
+      setError(msg);
     } finally {
       setUpdateBusy(false);
     }

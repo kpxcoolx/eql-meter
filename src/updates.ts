@@ -29,11 +29,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export async function checkForAppUpdate(): Promise<PendingUpdate | null> {
-  const update = await withTimeout(
-    check({ timeout: CHECK_TIMEOUT_MS }),
-    CHECK_TIMEOUT_MS + 1000,
-    "Update check"
-  );
+  let update: Update | null;
+  try {
+    update = await withTimeout(
+      check({ timeout: CHECK_TIMEOUT_MS }),
+      CHECK_TIMEOUT_MS + 1000,
+      "Update check"
+    );
+  } catch (err) {
+    const raw = String(err);
+    if (
+      raw.includes("valid release JSON") ||
+      raw.includes("Could not fetch") ||
+      raw.includes("404")
+    ) {
+      throw new Error(
+        "Update feed not ready yet (latest.json missing). Use Menu → Latest release… to download the installer."
+      );
+    }
+    throw err;
+  }
   if (!update) {
     return null;
   }
