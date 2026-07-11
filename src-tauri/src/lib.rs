@@ -1,4 +1,3 @@
-mod eq_process;
 mod fight;
 mod log_find;
 mod log_tail;
@@ -18,8 +17,6 @@ use settings::{
 use spells::SpellCatalog;
 use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(target_os = "windows")]
-use std::time::Duration;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -448,6 +445,17 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
     let _ = window.set_ignore_cursor_events(false);
     let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
 
+    // New windows can land on a weird default desktop position on Windows —
+    // always snap onto a real monitor after create.
+    if let Some(current) = capture_window_geometry(&window) {
+        let safe = place_overlay_on_screen(&app, &current);
+        if safe.x != current.x || safe.y != current.y {
+            apply_window_geometry(&window, &safe);
+            let _ = remember_window(&app, "overlay", safe);
+        }
+    }
+    let _ = window.show();
+
     *state.overlay_open.lock() = true;
     emit_overlay_status(&app, &state);
     Ok(status(&state))
@@ -732,29 +740,6 @@ pub fn run() {
             app.global_shortcut()
                 .register(Shortcut::new(Some(mods), Code::KeyL))
                 .map_err(|e| e.to_string())?;
-
-            // Windows: hide overlay when the game client is gone.
-            #[cfg(target_os = "windows")]
-            {
-                let handle = app.handle().clone();
-                std::thread::spawn(move || loop {
-                    std::thread::sleep(Duration::from_secs(4));
-                    // App exited (main close tears everything down).
-                    if handle.webview_windows().is_empty() {
-                        break;
-                    }
-                    let Some(state) = handle.try_state::<Arc<AppState>>() else {
-                        break;
-                    };
-                    if !*state.overlay_open.lock() {
-                        continue;
-                    }
-                    if eq_process::is_eq_running() {
-                        continue;
-                    }
-                    let _ = hide_overlay_inner(&handle, state.inner());
-                });
-            }
 
             Ok(())
         })
