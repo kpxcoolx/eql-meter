@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-07-11
+
+### Fixed
+
+- Fight selection (click / Select all) no longer snaps back to the newest fight after combat.
+- Copy Parse works reliably out of combat for the selected fight.
+
 ## [0.1.5] — 2026-07-11
 
 ### Fixed
@@ -70,7 +77,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.6
 [0.1.5]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.5
 [0.1.4]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.4
 [0.1.3]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.3
