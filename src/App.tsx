@@ -1517,9 +1517,19 @@ function App() {
                   className="linkish"
                   onClick={clearFightSelection}
                 >
-                  Clear
+                  Deselect
                 </button>
               ) : null}
+              <button
+                type="button"
+                className="linkish"
+                onClick={() => void clearFights()}
+                disabled={
+                  meter.active_fights.length + meter.recent_fights.length === 0
+                }
+              >
+                Clear all
+              </button>
             </div>
           </div>
           <p className="fight-rail-hint">

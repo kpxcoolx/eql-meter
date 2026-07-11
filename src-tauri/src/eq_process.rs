@@ -11,8 +11,15 @@ const EQ_PROCESS_NAMES: &[&str] = &[
 
 #[cfg(target_os = "windows")]
 pub fn is_eq_running() -> bool {
+    use std::os::windows::process::CommandExt;
+
+    // GUI apps flash a console for every console-subsystem child unless this
+    // flag is set. Without it, the 4s EQ watcher pops a terminal forever.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
     let Ok(output) = std::process::Command::new("tasklist")
         .args(["/FO", "CSV", "/NH"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
     else {
         return false;
