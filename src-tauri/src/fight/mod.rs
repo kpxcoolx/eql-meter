@@ -118,6 +118,8 @@ pub struct MeterState {
     pub monitoring: bool,
     pub focus_primary: bool,
     pub min_fight_damage: u64,
+    /// When true, only your damage/heals (and pets) count — other players in the log are ignored.
+    pub self_only: bool,
     /// Live NPC fights (one row per mob, EQLogParser-style).
     pub active_fights: Vec<FightSummary>,
     /// Combined view of all live fights, or the single live fight.
@@ -432,7 +434,7 @@ fn player_stat(
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FightTracker {
     next_id: u64,
     character: Option<String>,
@@ -442,6 +444,8 @@ pub struct FightTracker {
     monitoring: bool,
     focus_primary: bool,
     min_fight_damage: u64,
+    /// Default on: EQ logs include other group/raid hits; we only want yours.
+    self_only: bool,
     active: HashMap<String, Fight>,
     recent: Vec<Fight>,
     /// Players captured since last raid-count flush.
@@ -451,6 +455,29 @@ pub struct FightTracker {
     misc_log: Vec<MiscEvent>,
     /// Pet display name → owner character name.
     pet_owners: HashMap<String, String>,
+}
+
+impl Default for FightTracker {
+    fn default() -> Self {
+        Self {
+            next_id: 0,
+            character: None,
+            server: None,
+            stance: None,
+            log_path: None,
+            monitoring: false,
+            focus_primary: false,
+            min_fight_damage: 0,
+            self_only: true,
+            active: HashMap::new(),
+            recent: Vec::new(),
+            roster_building: HashMap::new(),
+            raid_roster: None,
+            recent_rosters: Vec::new(),
+            misc_log: Vec::new(),
+            pet_owners: HashMap::new(),
+        }
+    }
 }
 
 impl FightTracker {
@@ -476,9 +503,26 @@ impl FightTracker {
         self.monitoring = monitoring;
     }
 
-    pub fn set_options(&mut self, focus_primary: bool, min_fight_damage: u64) {
+    pub fn set_options(&mut self, focus_primary: bool, min_fight_damage: u64, self_only: bool) {
         self.focus_primary = focus_primary;
         self.min_fight_damage = min_fight_damage;
+        self.self_only = self_only;
+    }
+
+    pub fn set_self_only(&mut self, self_only: bool) {
+        self.self_only = self_only;
+    }
+
+    fn is_self_combatant(&self, owner: &str) -> bool {
+        if is_self_label(owner) {
+            return true;
+        }
+        if let Some(me) = &self.character {
+            if owner.eq_ignore_ascii_case(me) {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn reset_active(&mut self) {
@@ -573,6 +617,7 @@ impl FightTracker {
             monitoring: self.monitoring,
             focus_primary: self.focus_primary,
             min_fight_damage: self.min_fight_damage,
+            self_only: self.self_only,
             active_fights,
             active_fight,
             recent_fights,
@@ -689,11 +734,15 @@ impl FightTracker {
             return;
         }
 
-        // Pet co-attacking the same NPC you're fighting → claim as your pet.
-        self.maybe_claim_pet_attacker(&dmg.attacker, &dmg.target);
+        // Pets are learned from "Your …" lines and from mobs hitting the pet —
+        // never by guessing that another player on the same target is your pet.
 
         let resolved = self.resolve_attacker(&dmg.attacker);
         let attacker = resolved.owner;
+
+        if self.self_only && !self.is_self_combatant(&attacker) {
+            return;
+        }
 
         // Never start a fight against your own pet name.
         if self.is_owned_pet(&dmg.target) {
@@ -795,6 +844,9 @@ impl FightTracker {
         }
 
         let attacker = self.resolve_attacker(&avoid.attacker).owner;
+        if self.self_only && !self.is_self_combatant(&attacker) {
+            return;
+        }
         let Some(fight) = self.fight_for(&avoid.target, now) else {
             return;
         };
@@ -819,43 +871,53 @@ impl FightTracker {
         // Attach heals to the active fight; don't open a new fight from heals alone.
         let healer = self.resolve_attacker(&heal.healer).owner;
         let target = self.resolve_attacker(&heal.target).owner;
+        let count_healer = !self.self_only || self.is_self_combatant(&healer);
+        let count_receiver = !self.self_only || self.is_self_combatant(&target);
+        if self.self_only && !count_healer && !count_receiver {
+            return;
+        }
         let Some(key) = self.most_recent_active_key() else {
             return;
         };
         let fight = self.active.get_mut(&key).expect("active fight");
         fight.last_hit_at = now;
-        fight.healing += heal.amount;
-        fight.overheal += heal.overheal;
 
-        let sec = ((now - fight.started_at).floor() as i64).max(0) as u32;
-        *fight.heal_timeline.entry(sec).or_insert(0) += heal.amount;
+        if count_healer {
+            fight.healing += heal.amount;
+            fight.overheal += heal.overheal;
 
-        let spell_entry = fight
-            .heal_spells
-            .entry(heal.spell.clone())
-            .or_insert((0, 0));
-        spell_entry.0 += heal.amount;
-        spell_entry.1 += 1;
+            let sec = ((now - fight.started_at).floor() as i64).max(0) as u32;
+            *fight.heal_timeline.entry(sec).or_insert(0) += heal.amount;
 
-        let player = fight.players.entry(healer).or_default();
-        player.healing += heal.amount;
-        player.overheal += heal.overheal;
-        *player.heal_timeline.entry(sec).or_insert(0) += heal.amount;
+            let spell_entry = fight
+                .heal_spells
+                .entry(heal.spell.clone())
+                .or_insert((0, 0));
+            spell_entry.0 += heal.amount;
+            spell_entry.1 += 1;
 
-        let ability = player
-            .abilities
-            .entry(heal.spell.clone())
-            .or_insert(AbilityStat {
-                name: heal.spell.clone(),
-                hits: 0,
-                damage: 0,
-                healing: 0,
-            });
-        ability.hits += 1;
-        ability.healing += heal.amount;
+            let player = fight.players.entry(healer).or_default();
+            player.healing += heal.amount;
+            player.overheal += heal.overheal;
+            *player.heal_timeline.entry(sec).or_insert(0) += heal.amount;
 
-        let receiver = fight.players.entry(target).or_default();
-        receiver.healing_received += heal.amount;
+            let ability = player
+                .abilities
+                .entry(heal.spell.clone())
+                .or_insert(AbilityStat {
+                    name: heal.spell.clone(),
+                    hits: 0,
+                    damage: 0,
+                    healing: 0,
+                });
+            ability.hits += 1;
+            ability.healing += heal.amount;
+        }
+
+        if count_receiver {
+            let receiver = fight.players.entry(target).or_default();
+            receiver.healing_received += heal.amount;
+        }
     }
 
     fn on_death(&mut self, death: DeathEvent, now: f64) {
@@ -1095,28 +1157,6 @@ impl FightTracker {
         }
         // Known pet, or an NPC (including named multi-word mobs) hitting a pet-like name.
         self.is_owned_pet(target) || looks_like_npc(attacker)
-    }
-
-    /// If a combatant-looking name is hitting an NPC (or a fight you already opened),
-    /// treat it as our pet unless they're on the raid roster.
-    fn maybe_claim_pet_attacker(&mut self, attacker: &str, target: &str) {
-        let Some(owner) = self.character.clone() else {
-            return;
-        };
-        if attacker.eq_ignore_ascii_case(&owner) || is_self_label(attacker) {
-            return;
-        }
-        if !looks_like_combatant_name(attacker) {
-            return;
-        }
-        if self.is_other_raid_player(attacker) || self.is_owned_pet(attacker) {
-            return;
-        }
-        let on_active_fight = self.active.contains_key(&fight_key(target));
-        if !looks_like_npc(target) && !on_active_fight {
-            return;
-        }
-        self.note_pet(attacker, &owner);
     }
 }
 
@@ -1589,7 +1629,7 @@ mod tests {
     fn multi_mob_even_when_focus_primary_flag_set() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
-        tracker.set_options(true, 0);
+        tracker.set_options(true, 0, true);
 
         tracker.ingest(hit(100.0, "a skeleton", 50));
         tracker.ingest(hit(101.0, "a kor ghoul wizard", 80));
@@ -1740,28 +1780,28 @@ mod tests {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
 
-        // You and pet on the same NPC.
+        // You open the fight, then the mob hits the pet so we learn the pet name.
         tracker.ingest(hit(100.0, "a Knight of Innoruuk", 100));
         tracker.ingest(CombatEvent::Damage(DamageEvent {
             timestamp: String::new(),
             time_secs: Some(100.2),
             incoming: false,
-            attacker: "Koner".into(),
-            target: "a Knight of Innoruuk".into(),
-            amount: 50,
-            hit_type: "slash".into(),
-            spell: None,
-            modifiers: Vec::new(),
-        }));
-        // Mob hits the pet — must not create a "Koner" fight.
-        tracker.ingest(CombatEvent::Damage(DamageEvent {
-            timestamp: String::new(),
-            time_secs: Some(100.4),
-            incoming: false,
             attacker: "a Knight of Innoruuk".into(),
             target: "Koner".into(),
             amount: 12,
             hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        // Pet damage merges onto Kenkyo.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "Koner".into(),
+            target: "a Knight of Innoruuk".into(),
+            amount: 50,
+            hit_type: "slash".into(),
             spell: None,
             modifiers: Vec::new(),
         }));
@@ -1825,6 +1865,56 @@ mod tests {
         assert_eq!(fight.players[0].name, "Kenkyo");
         assert!(fight.players[0].damage >= 140);
         assert!(fight.damage_taken >= 27);
+    }
+
+    #[test]
+    fn self_only_ignores_other_players() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+        assert!(tracker.snapshot().self_only);
+
+        tracker.ingest(hit(100.0, "a skeleton", 50));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Bob".into(),
+            target: "a skeleton".into(),
+            amount: 999,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 50);
+        assert_eq!(fight.total_damage, 50);
+    }
+
+    #[test]
+    fn group_mode_keeps_other_players() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+        tracker.set_self_only(false);
+
+        tracker.ingest(hit(100.0, "a skeleton", 50));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Bob".into(),
+            target: "a skeleton".into(),
+            amount: 80,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(fight.players.iter().any(|p| p.name == "Bob"));
+        assert_eq!(fight.total_damage, 130);
     }
 }
 

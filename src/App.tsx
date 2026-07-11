@@ -140,6 +140,7 @@ export type MeterState = {
   monitoring: boolean;
   focus_primary: boolean;
   min_fight_damage: number;
+  self_only: boolean;
   active_fights: FightSummary[];
   active_fight: FightSummary | null;
   recent_fights: FightSummary[];
@@ -155,6 +156,7 @@ export type AppSettings = {
   auto_monitor_on_start: boolean;
   focus_primary: boolean;
   min_fight_damage: number;
+  self_only: boolean;
   main_window?: {
     x: number;
     y: number;
@@ -178,6 +180,7 @@ const emptyState: MeterState = {
   monitoring: false,
   focus_primary: false,
   min_fight_damage: 0,
+  self_only: true,
   active_fights: [],
   active_fight: null,
   recent_fights: [],
@@ -1200,6 +1203,20 @@ function App() {
     }
   }, []);
 
+  const toggleSelfOnly = useCallback(async (enabled: boolean) => {
+    try {
+      const next = await invoke<MeterState>("set_self_only", { enabled });
+      setMeter(next);
+      setToast(
+        enabled
+          ? "Self only — other players in your log are ignored"
+          : "Group mode — other players in your log are counted"
+      );
+    } catch (err) {
+      setError(String(err));
+    }
+  }, []);
+
   const copyParse = useCallback(async () => {
     try {
       const ids = selectedFightIds.filter((id) => id !== 0);
@@ -1459,6 +1476,16 @@ function App() {
                   onClick={() => runMenuAction(stop)}
                 >
                   Stop monitoring
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() =>
+                    runMenuAction(() => void toggleSelfOnly(!meter.self_only))
+                  }
+                  title="Your EQ log includes other players' hits. Self only keeps your damage and pets."
+                >
+                  {meter.self_only ? "Show group damage" : "Self only (hide group)"}
                 </button>
                 <button
                   type="button"

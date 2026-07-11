@@ -67,6 +67,7 @@ fn save_app_settings(
     merged.auto_monitor_on_start = settings.auto_monitor_on_start;
     merged.focus_primary = settings.focus_primary;
     merged.min_fight_damage = settings.min_fight_damage;
+    merged.self_only = settings.self_only;
     if settings.main_window.is_some() {
         merged.main_window = settings.main_window;
     }
@@ -79,10 +80,30 @@ fn save_app_settings(
     save_settings(&app, &merged)?;
     {
         let mut tracker = state.tracker.lock();
-        tracker.set_options(merged.focus_primary, merged.min_fight_damage);
+        tracker.set_options(
+            merged.focus_primary,
+            merged.min_fight_damage,
+            merged.self_only,
+        );
     }
     let _ = emit_state(&state, &app);
     Ok(merged)
+}
+
+#[tauri::command]
+fn set_self_only(
+    enabled: bool,
+    state: State<'_, Arc<AppState>>,
+    app: AppHandle,
+) -> Result<MeterState, String> {
+    let mut settings = load_settings(&app);
+    settings.self_only = enabled;
+    save_settings(&app, &settings)?;
+    {
+        let mut tracker = state.tracker.lock();
+        tracker.set_self_only(enabled);
+    }
+    Ok(emit_state(&state, &app))
 }
 
 #[tauri::command]
@@ -753,7 +774,11 @@ pub fn run() {
                 app_state
                     .tracker
                     .lock()
-                    .set_options(settings.focus_primary, settings.min_fight_damage);
+                    .set_options(
+                        settings.focus_primary,
+                        settings.min_fight_damage,
+                        settings.self_only,
+                    );
                 if let Some(ref spells_path) = settings.spells_path {
                     try_load_spells(app_state.inner(), spells_path);
                 }
@@ -785,6 +810,7 @@ pub fn run() {
             host_os,
             get_settings,
             save_app_settings,
+            set_self_only,
             save_window_geometry,
             find_logs,
             auto_detect_log,
