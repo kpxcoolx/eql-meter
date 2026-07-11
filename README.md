@@ -1,73 +1,77 @@
 # EQL Meter
 
-Real-time combat log meter for **EverQuest Legends**.
+Real-time combat meter for **EverQuest Legends**.
 
-Develop on macOS. Ship and run on **Windows** next to the game client — that is how players will use it.
+It tails your character log (`eqlog_<Character>_<Server>.txt`), tracks live fights, and shows group DPS in a main window plus an always-on-top overlay.
 
-## What it does
+**Repo:** [github.com/kpxcoolx/eql-meter](https://github.com/kpxcoolx/eql-meter)
 
-- Auto-detects `eqlog_<Character>_<Server>.txt` under the EverQuest Legends `Logs` folder
-- Remembers the last log and can resume monitoring on launch
-- Live fight tracking, group DPS, ability breakdown, damage-over-time chart
+## Which guide do I need?
+
+| You are… | Guide |
+|----------|--------|
+| **Playing on Windows** (normal) | [Windows](docs/windows.md) — download the `.exe` installer |
+| Developing on **Mac + Parallels** | [Mac + Parallels](docs/mac-parallels.md) |
+
+Players on Windows should **never** need to clone the repo or run `npm`. That path is for contributors building the installer.
+
+## Features
+
+- Live fight tracking, multi-mob Combined view, ability breakdown, DPS chart
+- Floating overlay with click-through (clicks pass through to the game)
 - Raid roster from `/who all raid`, plus Misc tab for loot / randoms / chat
-- Optional ability-name file (Menu → Extras) if logs show spell IDs instead of names
-- In-game overlay with click-through lock
-- Opens the log with Windows share-mode so EQ can keep writing
-- Remembers main + overlay window positions between launches
+- Heals tab with healing done and healing received
+- Group DPS bars when a raid roster is known
+- Remembers last log and window / overlay positions
+- Optional ability-name file if logs show spell IDs instead of names
+- Windows: overlay auto-hides when the game client is not running
 
-## Live logs from Mac + Parallels
+## Menu (quick map)
 
-1. Start the Windows VM (so C: appears under `/Volumes`)
-2. Run `npm run tauri:dev`
-3. Click **Live Parallels** (or Menu → Log → Live Parallels log)
+| Section | What it does |
+|---------|----------------|
+| **Monitor** | Find / choose / resume / stop the character log |
+| **Overlay** | Open/close overlay; click-through to game |
+| **Combat** | Copy parse, end fight, clear history, skip tiny fights |
+| **Extras** | Optional ability names; load sample fight |
 
-That tails:
-`/Volumes/[C] Windows 11.hidden/Users/Public/.../EverQuest Legends/Logs/eqlog_*.txt`
+## Overlay hotkeys
 
-Play in EQ — new combat lines should update the meter within ~150ms.
+| Shortcut | Action |
+|----------|--------|
+| Ctrl/Cmd+Shift+U | Make overlay clickable |
+| Ctrl/Cmd+Shift+L | Click-through to game |
 
-If it fails to find the file: open Finder → Go → Go to Folder → `/Volumes` and confirm the Windows disk is mounted. You can also **Menu → Monitor → Choose log…** and pick the `eqlog_*.txt` manually.
-## Ship for Windows
+Use EQ in **windowed** or **borderless** mode so the overlay can sit on top.
 
-### On a Windows machine
+## Develop (contributors)
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+- **macOS:** [Mac + Parallels](docs/mac-parallels.md) to attach to the VM log.
+- **Windows:** [Windows](docs/windows.md) — use **Find Legends log**.
+
+### Ship a Windows installer for players
+
+Do **not** ask players to build. Produce an NSIS `.exe` and put it on GitHub Releases:
+
+1. GitHub → **Actions** → **windows-build** → **Run workflow** (enter `v0.1.0` or similar), **or**
+2. `git tag v0.1.0 && git push origin v0.1.0`
+
+The workflow builds on `windows-latest` and attaches the installer to a **draft release**. Publish the draft when you are ready to dogfood.
+
+Local build (on a Windows machine) if you prefer:
 
 ```bash
 npm install
 npm run tauri:build:windows
 ```
 
-NSIS installer output:
+Output: `src-tauri/target/release/bundle/nsis/`
 
-`src-tauri/target/release/bundle/nsis/`
+## Sample logs
 
-Install with the generated `.exe` (current-user install, no admin required). Window and overlay positions are remembered between launches.
-
-### Via GitHub Actions
-
-Push a tag like `v0.1.0` or run the **windows-build** workflow manually. It builds an NSIS installer on `windows-latest`.
-
-Players need:
-
-1. Logging enabled in EQ Legends
-2. Logs under  
-   `C:\Users\Public\Daybreak Game Company\Installed Games\EverQuest Legends\Logs`
-3. **Auto-detect** (or Open & Monitor) while playing
-
-On Windows, the overlay auto-hides when the game client is not running.
-
-## In-game overlay
-
-- **Overlay** — floating always-on-top DPS meter
-- **Lock / Click-through** — mouse clicks pass through to the game
-- **Unlock Overlay** in the main window, or **Ctrl+Shift+U** (Cmd+Shift+U on Mac)
-- **Ctrl+Shift+L** / **Cmd+Shift+L** locks click-through again
-- **Copy Parse** — clipboard summary for group chat
-
-Use EQ in windowed or borderless mode on Windows.
-
-## Hotkeys
-
-| Shortcut | Action |
-|----------|--------|
-| Ctrl/Cmd+Shift+U | Unlock overlay (disable click-through) |
-| Ctrl/Cmd+Shift+L | Lock overlay (enable click-through) |
+Parser fixtures live under [`samples/`](samples/). Useful for offline testing without the game running.
