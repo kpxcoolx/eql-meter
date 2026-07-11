@@ -497,8 +497,13 @@ fn toggle_overlay(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<OverlayStatus, String> {
-    let open = *state.overlay_open.lock();
-    if open {
+    // Prefer the real window over the flag — flag can drift and leave a
+    // stuck overlay that "Overlay" would only re-show instead of closing.
+    let window_open = app
+        .get_webview_window("overlay")
+        .map(|w| w.is_visible().unwrap_or(true))
+        .unwrap_or(false);
+    if window_open || *state.overlay_open.lock() {
         hide_overlay(app, state)
     } else {
         show_overlay(app, state)
@@ -591,16 +596,19 @@ fn apply_click_through(
 }
 
 fn status(app: &AppHandle, state: &Arc<AppState>) -> OverlayStatus {
-    let open = *state.overlay_open.lock();
+    let window = app.get_webview_window("overlay");
+    let open = window
+        .as_ref()
+        .map(|w| w.is_visible().unwrap_or(true))
+        .unwrap_or(false);
+    *state.overlay_open.lock() = open;
     let click_through = *state.overlay_click_through.lock();
     let mut x = None;
     let mut y = None;
-    if open {
-        if let Some(window) = app.get_webview_window("overlay") {
-            if let Some(geo) = capture_window_geometry(&window) {
-                x = Some(geo.x);
-                y = Some(geo.y);
-            }
+    if let Some(window) = window.as_ref() {
+        if let Some(geo) = capture_window_geometry(window) {
+            x = Some(geo.x);
+            y = Some(geo.y);
         }
     }
     OverlayStatus {

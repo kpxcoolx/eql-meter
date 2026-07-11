@@ -1,5 +1,5 @@
 :root {
-  --bg: rgba(18, 16, 14, var(--overlay-bg-alpha, 0.88));
+  --bg: #12100e;
   --bg-row: transparent;
   --bg-top: rgba(224, 168, 74, 0.18);
   --bg-self: rgba(212, 162, 76, 0.16);
@@ -17,7 +17,7 @@
   --overlay-bg-alpha: 0.88;
   color: var(--text);
   font-family: var(--font-body);
-  background: transparent;
+  background: #12100e;
   font-size: var(--overlay-font);
 }
 
@@ -55,7 +55,7 @@ body,
   margin: 0;
   height: auto;
   min-height: 0;
-  background: transparent;
+  background: #12100e;
   overflow: hidden;
 }
 
@@ -63,12 +63,14 @@ body,
   margin: 0;
   padding: 0;
   border: 1px solid var(--line);
-  background: var(--bg);
+  background: #12100e;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: auto;
+  min-height: 54px;
   overflow: visible;
+  color: var(--text);
 }
 
 .overlay-shell.locked {
@@ -165,7 +167,14 @@ body,
 }
 
 .overlay-icon.close {
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f0c2b8;
+}
+
+.overlay-icon.close:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(196, 92, 72, 0.35);
 }
 
 .overlay-icon:hover:not(:disabled) {
