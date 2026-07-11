@@ -750,14 +750,13 @@ function App() {
   useEffect(() => {
     const liveCount = meter.active_fights.length;
 
-    // New pull, or grew into a multi-mob pull — follow Combined / live default.
+    // Follow live combat only when a new pull starts or grows into multi-mob.
+    // Do NOT unpin when combat ends — that made every out-of-combat click
+    // snap straight back to the newest recent fight.
     if (liveCount > 0 && prevLiveCount.current === 0) {
       selectionPinned.current = false;
     }
     if (liveCount > 1 && prevLiveCount.current <= 1) {
-      selectionPinned.current = false;
-    }
-    if (liveCount === 0) {
       selectionPinned.current = false;
     }
     prevLiveCount.current = liveCount;
@@ -1056,16 +1055,41 @@ function App() {
   const copyParse = useCallback(async () => {
     try {
       const ids = selectedFightIds.filter((id) => id !== 0);
+      let fightId: number | null = null;
+      let fightIds: number[] | null = null;
+
+      if (selectedFightIds.length === 1 && selectedFightIds[0] === 0) {
+        // Live Combined row — copy every active mob.
+        fightIds = meter.active_fights.map((f) => f.id);
+      } else if (ids.length > 1) {
+        fightIds = ids;
+      } else if (ids.length === 1) {
+        fightId = ids[0];
+      } else if (displayedFight && displayedFight.id !== 0) {
+        fightId = displayedFight.id;
+      } else if (meter.active_fight && meter.active_fight.id !== 0) {
+        fightId = meter.active_fight.id;
+      } else if (meter.recent_fights[0]) {
+        fightId = meter.recent_fights[0].id;
+      } else {
+        setError("No fight to copy");
+        return;
+      }
+
+      if (fightIds && fightIds.length === 0) {
+        setError("No fight to copy");
+        return;
+      }
+
       const text = await invoke<string>("copy_parse", {
-        fightId:
-          selectedFightIds.length === 1 ? selectedFightIds[0] : null,
-        fightIds: ids.length > 1 ? ids : null,
+        fightId,
+        fightIds,
       });
       setToast(`Copied: ${text}`);
     } catch (err) {
       setError(String(err));
     }
-  }, [selectedFightIds]);
+  }, [selectedFightIds, displayedFight, meter.active_fights, meter.active_fight, meter.recent_fights]);
 
   useEffect(() => {
     if (!menuOpen) return;
