@@ -32,6 +32,8 @@ pub struct AppSettings {
     pub focus_primary: bool,
     /// Drop finished fights below this total damage (0 = keep all).
     pub min_fight_damage: u64,
+    /// When true (default), ignore other players' combat lines in your log.
+    pub self_only: bool,
     pub main_window: Option<WindowGeometry>,
     pub overlay_window: Option<WindowGeometry>,
     /// Optional path to EverQuest `spells_us.txt` for ability name enrichment.
@@ -45,6 +47,7 @@ impl Default for AppSettings {
             auto_monitor_on_start: true,
             focus_primary: false,
             min_fight_damage: 0,
+            self_only: true,
             main_window: None,
             overlay_window: None,
             spells_path: None,
