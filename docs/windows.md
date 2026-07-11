@@ -50,6 +50,20 @@ When the EQ client exits, the overlay **auto-hides** on Windows.
 
 ---
 
+## Updates
+
+EQL Meter checks GitHub for a newer release on startup.
+
+| Want… | Do this |
+|-------|---------|
+| See if an update exists | **Menu → Check for updates** |
+| Install it | Banner **Install update**, or **Menu → Install …** |
+| Manual download | **Menu → Open latest release…** or [Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest) |
+
+The first time you need this updater, install **v0.1.4+** once by hand. Later updates can install from inside the app.
+
+---
+
 ## Monitor menu
 
 | Item | When to use it |

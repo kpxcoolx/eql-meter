@@ -10,9 +10,7 @@ use fight::{FightSummary, FightTracker, MeterState};
 use log_find::{best_log, best_parallels_log, find_eq_logs, FoundLog};
 use log_tail::TailHandle;
 use parking_lot::Mutex;
-use parse::{
-    character_from_path, detect_stance_from_text, parse_line, server_from_path,
-};
+use parse::{character_from_path, detect_stance_from_text, parse_line, server_from_path};
 use settings::{
     load_settings, remember_log_path, remember_spells_path, remember_window, save_settings,
     AppSettings, WindowGeometry,
@@ -23,8 +21,8 @@ use std::sync::Arc;
 #[cfg(target_os = "windows")]
 use std::time::Duration;
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -152,11 +150,7 @@ fn clear_fights(state: State<'_, Arc<AppState>>, app: AppHandle) -> MeterState {
 }
 
 #[tauri::command]
-fn remove_fight(
-    fight_id: u64,
-    state: State<'_, Arc<AppState>>,
-    app: AppHandle,
-) -> MeterState {
+fn remove_fight(fight_id: u64, state: State<'_, Arc<AppState>>, app: AppHandle) -> MeterState {
     {
         let mut tracker = state.tracker.lock();
         tracker.remove_fight(fight_id);
@@ -323,12 +317,86 @@ fn persist_window_geometry(app: &AppHandle, label: &str) {
     let Some(geometry) = capture_window_geometry(&window) else {
         return;
     };
+    // Never remember off-screen coords (disconnected display / Parallels shuffle).
+    if !geometry_visible_on_any_monitor(app, &geometry) {
+        return;
+    }
     let _ = remember_window(app, label, geometry);
+}
+
+fn geometry_visible_on_any_monitor(app: &AppHandle, geometry: &WindowGeometry) -> bool {
+    let Ok(monitors) = app.available_monitors() else {
+        return true;
+    };
+    if monitors.is_empty() {
+        return true;
+    }
+    let cx = geometry.x + geometry.width * 0.5;
+    let cy = geometry.y + geometry.height * 0.5;
+    for monitor in monitors {
+        let scale = monitor.scale_factor();
+        if scale <= 0.0 {
+            continue;
+        }
+        let pos = monitor.position();
+        let size = monitor.size();
+        let left = f64::from(pos.x) / scale;
+        let top = f64::from(pos.y) / scale;
+        let right = left + f64::from(size.width) / scale;
+        let bottom = top + f64::from(size.height) / scale;
+        if cx >= left && cx < right && cy >= top && cy < bottom {
+            return true;
+        }
+    }
+    false
+}
+
+fn place_overlay_on_screen(app: &AppHandle, geometry: &WindowGeometry) -> WindowGeometry {
+    let width = geometry.width.max(300.0);
+    let height = geometry.height.max(54.0);
+    if geometry_visible_on_any_monitor(app, geometry) {
+        return WindowGeometry {
+            x: geometry.x,
+            y: geometry.y,
+            width,
+            height,
+        };
+    }
+
+    // Saved position is off every display — park near the primary top-right.
+    if let Ok(Some(monitor)) = app.primary_monitor() {
+        let scale = monitor.scale_factor().max(0.1);
+        let pos = monitor.position();
+        let size = monitor.size();
+        let left = f64::from(pos.x) / scale;
+        let top = f64::from(pos.y) / scale;
+        let monitor_w = f64::from(size.width) / scale;
+        return WindowGeometry {
+            x: left + monitor_w - width - 24.0,
+            y: top + 48.0,
+            width,
+            height,
+        };
+    }
+
+    WindowGeometry {
+        x: 80.0,
+        y: 80.0,
+        width,
+        height,
+    }
 }
 
 #[tauri::command]
 fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<OverlayStatus, String> {
     if let Some(window) = app.get_webview_window("overlay") {
+        if let Some(current) = capture_window_geometry(&window) {
+            if !geometry_visible_on_any_monitor(&app, &current) {
+                let safe = place_overlay_on_screen(&app, &current);
+                apply_window_geometry(&window, &safe);
+                let _ = remember_window(&app, "overlay", safe);
+            }
+        }
         let _ = window.set_always_on_top(true);
         window.show().map_err(|e| e.to_string())?;
         let click_through = *state.overlay_click_through.lock();
@@ -347,25 +415,30 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
     *state.overlay_click_through.lock() = false;
 
     let settings = load_settings(&app);
-    let mut builder = WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("overlay.html".into()))
-        .title("EQL Overlay")
-        .inner_size(380.0, 54.0)
-        .min_inner_size(300.0, 54.0)
-        .resizable(false)
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .background_color(tauri::window::Color(0, 0, 0, 0))
-        .always_on_top(true)
-        .visible_on_all_workspaces(true)
-        .skip_taskbar(true)
-        .focused(false)
-        .visible(true);
+    let mut builder =
+        WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("overlay.html".into()))
+            .title("EQL Overlay")
+            .inner_size(380.0, 54.0)
+            .min_inner_size(300.0, 54.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .background_color(tauri::window::Color(0, 0, 0, 0))
+            .always_on_top(true)
+            .visible_on_all_workspaces(true)
+            .skip_taskbar(true)
+            .focused(false)
+            .visible(true);
 
     if let Some(geo) = settings.overlay_window.as_ref() {
+        let safe = place_overlay_on_screen(&app, geo);
+        if safe.x != geo.x || safe.y != geo.y {
+            let _ = remember_window(&app, "overlay", safe.clone());
+        }
         builder = builder
-            .position(geo.x, geo.y)
-            .inner_size(geo.width.max(300.0), geo.height.max(54.0));
+            .position(safe.x, safe.y)
+            .inner_size(safe.width, safe.height);
     }
 
     let window = builder.build().map_err(|e| e.to_string())?;
@@ -400,7 +473,10 @@ fn hide_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
 }
 
 #[tauri::command]
-fn toggle_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<OverlayStatus, String> {
+fn toggle_overlay(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<OverlayStatus, String> {
     let open = *state.overlay_open.lock();
     if open {
         hide_overlay(app, state)
@@ -468,7 +544,11 @@ fn combine_fights(
         .ok_or_else(|| "Select at least one fight to combine".to_string())
 }
 
-fn apply_click_through(app: &AppHandle, state: &Arc<AppState>, enabled: bool) -> Result<(), String> {
+fn apply_click_through(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    enabled: bool,
+) -> Result<(), String> {
     *state.overlay_click_through.lock() = enabled;
     if let Some(window) = app.get_webview_window("overlay") {
         window
@@ -558,6 +638,8 @@ pub fn run() {
     });
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

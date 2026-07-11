@@ -6,6 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-07-11
+
+### Added
+
+- In-app updates: startup check, **Menu → Check for updates**, and one-click install from GitHub Releases.
+
+### Changed
+
+- Slimmed the Menu to essentials (choose log, stop, click-through, updates).
+- Restyled scrollbars to match the dark amber chrome.
+
+### Fixed
+
+- Overlay opening off-screen (stale multi-monitor / Parallels position) now relocates onto a visible display.
+
 ## [0.1.3] — 2026-07-11
 
 ### Added
@@ -48,7 +63,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.4
+[0.1.3]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.3
 [0.1.2]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.2
 [0.1.1]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.0
