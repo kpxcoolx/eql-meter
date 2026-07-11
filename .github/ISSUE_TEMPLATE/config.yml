@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Feature requests & ideas
+    url: https://github.com/kpxcoolx/eql-meter/discussions/categories/ideas
+    about: Suggest features or vote on ideas in Discussions (Ideas).
+  - name: Questions & help
+    url: https://github.com/kpxcoolx/eql-meter/discussions/categories/q-a
+    about: Setup help, overlay questions, and general topics.
+  - name: All Discussions
+    url: https://github.com/kpxcoolx/eql-meter/discussions
+    about: Community chat, announcements, and show-and-tell.
