@@ -622,6 +622,11 @@ function App() {
   const [minFightDamage, setMinFightDamage] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [fightContextMenu, setFightContextMenu] = useState<{
+    x: number;
+    y: number;
+    fightId: number;
+  } | null>(null);
   const [isMac, setIsMac] = useState(false);
   const [meterTab, setMeterTab] = useState<"dps" | "heals" | "raid" | "misc">(
     "dps"
@@ -1020,6 +1025,22 @@ function App() {
     setSelectedPlayer(null);
   }, []);
 
+  const removeFight = useCallback(async (fightId: number) => {
+    setFightContextMenu(null);
+    const next = await invoke<MeterState>("remove_fight", { fightId });
+    setMeter(next);
+    prevLiveCount.current = next.active_fights.length;
+    setSelectedFightIds((prev) => {
+      const remaining = prev.filter((id) => id !== fightId && id !== 0);
+      if (remaining.length > 0) {
+        return remaining;
+      }
+      selectionPinned.current = false;
+      return defaultSelectedFightIds(next);
+    });
+    setCombinedFight(null);
+  }, []);
+
   const loadSpellsFile = useCallback(async () => {
     setError(null);
     setBusy(true);
@@ -1128,6 +1149,41 @@ function App() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!fightContextMenu) return;
+
+    function onPointerDown() {
+      setFightContextMenu(null);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFightContextMenu(null);
+      }
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fightContextMenu]);
+
+  function openFightContextMenu(
+    fightId: number,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    setFightContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      fightId,
+    });
+  }
 
   function runMenuAction(action: () => void | Promise<void>) {
     setMenuOpen(false);
@@ -1471,7 +1527,7 @@ function App() {
               ? selectedFightIds.length > 1
                 ? `${selectedFightIds.length} selected · combined summary`
                 : `Live combined · ${meter.active_fights.length} mobs`
-              : "Cmd/Ctrl+click to combine fights"}
+              : "Cmd/Ctrl+click to combine · right-click to delete"}
           </p>
           <div className="fight-list">
             {meter.active_fights.length > 1 && meter.active_fight ? (
@@ -1498,6 +1554,7 @@ function App() {
                   isFightHighlighted(fight.id) ? "selected" : ""
                 }`}
                 onClick={(event) => selectFight(fight.id, event)}
+                onContextMenu={(event) => openFightContextMenu(fight.id, event)}
               >
                 <span className="fight-target">{fight.target}</span>
                 <span className="fight-meta">
@@ -1515,6 +1572,7 @@ function App() {
                   isFightHighlighted(fight.id) ? "selected" : ""
                 }`}
                 onClick={(event) => selectFight(fight.id, event)}
+                onContextMenu={(event) => openFightContextMenu(fight.id, event)}
               >
                 <span className="fight-target">{fight.target}</span>
                 <span className="fight-meta">
@@ -1531,6 +1589,23 @@ function App() {
               </p>
             ) : null}
           </div>
+          {fightContextMenu ? (
+            <div
+              className="fight-context-menu"
+              style={{
+                left: fightContextMenu.x,
+                top: fightContextMenu.y,
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => void removeFight(fightContextMenu.fightId)}
+              >
+                Delete fight
+              </button>
+            </div>
+          ) : null}
         </aside>
 
         <main className="meter-panel">

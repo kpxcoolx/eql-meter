@@ -500,6 +500,22 @@ impl FightTracker {
         self.pet_owners.clear();
     }
 
+    /// Remove one fight by id from active or recent history.
+    pub fn remove_fight(&mut self, id: u64) -> bool {
+        let active_key = self
+            .active
+            .iter()
+            .find(|(_, fight)| fight.id == id)
+            .map(|(key, _)| key.clone());
+        if let Some(key) = active_key {
+            self.active.remove(&key);
+            return true;
+        }
+        let before = self.recent.len();
+        self.recent.retain(|fight| fight.id != id);
+        self.recent.len() != before
+    }
+
     pub fn ingest(&mut self, event: CombatEvent) {
         let event_time = match &event {
             CombatEvent::Damage(d) => d.time_secs,
@@ -648,8 +664,44 @@ impl FightTracker {
             return;
         }
 
+        // Mob swinging on your pet (e.g. "A knight hits Koner for 12…") must NOT
+        // open a fight named after the pet. Learn the pet name and count it as taken.
+        if looks_like_npc(&dmg.attacker) && looks_like_combatant_name(&dmg.target) {
+            if !self.is_other_raid_player(&dmg.target) {
+                if let Some(owner) = self.character.clone() {
+                    if !dmg.target.eq_ignore_ascii_case(&owner) {
+                        self.note_pet(&dmg.target, &owner);
+                    }
+                }
+                self.on_incoming(
+                    DamageEvent {
+                        timestamp: dmg.timestamp,
+                        time_secs: dmg.time_secs,
+                        incoming: true,
+                        attacker: dmg.attacker,
+                        target: "YOU".to_string(),
+                        amount: dmg.amount,
+                        hit_type: dmg.hit_type,
+                        spell: dmg.spell,
+                        modifiers: dmg.modifiers,
+                    },
+                    now,
+                );
+                return;
+            }
+        }
+
+        // Pet co-attacking the same NPC you're fighting → claim as your pet.
+        self.maybe_claim_pet_attacker(&dmg.attacker, &dmg.target);
+
         let resolved = self.resolve_attacker(&dmg.attacker);
         let attacker = resolved.owner;
+
+        // Never start a fight against your own pet name.
+        if self.is_owned_pet(&dmg.target) {
+            return;
+        }
+
         let target = dmg.target.clone();
         let Some(fight) = self.fight_for(&target, now) else {
             return;
@@ -872,7 +924,7 @@ impl FightTracker {
     }
 
     fn fight_for(&mut self, target: &str, now: f64) -> Option<&mut Fight> {
-        if target.is_empty() || is_self_label(target) {
+        if target.is_empty() || is_self_label(target) || self.is_owned_pet(target) {
             return None;
         }
         // Always open/update a per-NPC fight so multi-mob pulls stay visible.
@@ -1001,7 +1053,51 @@ impl FightTracker {
         if key.is_empty() || key == "pet" {
             return;
         }
+        if let Some(me) = &self.character {
+            if key == me.to_ascii_lowercase() {
+                return;
+            }
+        }
         self.pet_owners.insert(key, owner.to_string());
+    }
+
+    fn is_owned_pet(&self, name: &str) -> bool {
+        self.pet_owners
+            .contains_key(&name.trim().to_ascii_lowercase())
+    }
+
+    fn is_other_raid_player(&self, name: &str) -> bool {
+        let lower = name.trim().to_ascii_lowercase();
+        if let Some(me) = &self.character {
+            if lower == me.to_ascii_lowercase() {
+                return false;
+            }
+        }
+        let Some(roster) = &self.raid_roster else {
+            return false;
+        };
+        roster
+            .players
+            .iter()
+            .any(|p| p.name.to_ascii_lowercase() == lower)
+    }
+
+    /// If a combatant-looking name is hitting an NPC, treat it as our pet
+    /// (unless they're on the raid roster as another player).
+    fn maybe_claim_pet_attacker(&mut self, attacker: &str, target: &str) {
+        let Some(owner) = self.character.clone() else {
+            return;
+        };
+        if attacker.eq_ignore_ascii_case(&owner) || is_self_label(attacker) {
+            return;
+        }
+        if !looks_like_combatant_name(attacker) || !looks_like_npc(target) {
+            return;
+        }
+        if self.is_other_raid_player(attacker) || self.is_owned_pet(attacker) {
+            return;
+        }
+        self.note_pet(attacker, &owner);
     }
 }
 
@@ -1009,6 +1105,31 @@ struct ResolvedAttacker {
     owner: String,
     /// When set, damage is from a pet and should show in the owner's ability breakdown.
     pet: Option<String>,
+}
+
+fn looks_like_npc(name: &str) -> bool {
+    let trimmed = name.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("a ") || lower.starts_with("an ") || lower.starts_with("the ") {
+        return true;
+    }
+    if lower.contains(" of ") {
+        return true;
+    }
+    false
+}
+
+/// Player / pet style names: "Koner", "Kenkyo" — not "a skeleton".
+fn looks_like_combatant_name(name: &str) -> bool {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || is_self_label(trimmed) {
+        return false;
+    }
+    if looks_like_npc(trimmed) {
+        return false;
+    }
+    // Single token names are the common pet/player case.
+    !trimmed.contains(' ')
 }
 
 fn pet_display_name(rest: &str) -> String {
@@ -1561,6 +1682,82 @@ mod tests {
         let snap = tracker.snapshot();
         assert!(snap.active_fight.is_none());
         assert!(snap.active_fights.is_empty());
+    }
+
+    #[test]
+    fn remove_fight_drops_recent_and_active() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+        tracker.ingest(hit(100.0, "a skeleton", 50));
+        tracker.ingest(CombatEvent::Death(crate::parse::DeathEvent {
+            timestamp: String::new(),
+            time_secs: Some(101.0),
+            target: "a skeleton".into(),
+            killer: Some("Kenkyo".into()),
+            self_death: false,
+        }));
+        tracker.ingest(hit(200.0, "a Knight of Innoruuk", 80));
+
+        let snap = tracker.snapshot();
+        let recent_id = snap.recent_fights[0].id;
+        let active_id = snap.active_fights[0].id;
+
+        assert!(tracker.remove_fight(recent_id));
+        assert!(tracker.remove_fight(active_id));
+        assert!(!tracker.remove_fight(recent_id));
+
+        let after = tracker.snapshot();
+        assert!(after.recent_fights.is_empty());
+        assert!(after.active_fights.is_empty());
+    }
+
+    #[test]
+    fn named_pet_merges_and_does_not_become_a_fight() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // You and pet on the same NPC.
+        tracker.ingest(hit(100.0, "a Knight of Innoruuk", 100));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Koner".into(),
+            target: "a Knight of Innoruuk".into(),
+            amount: 50,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        // Mob hits the pet — must not create a "Koner" fight.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "a Knight of Innoruuk".into(),
+            target: "Koner".into(),
+            amount: 12,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let snap = tracker.snapshot();
+        assert!(
+            snap.active_fights.iter().all(|f| f.target != "Koner"),
+            "pet must not appear as a fight target"
+        );
+        assert_eq!(snap.active_fights.len(), 1);
+        let fight = snap.active_fight.expect("knight fight");
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 150);
+        assert!(fight
+            .players[0]
+            .abilities
+            .iter()
+            .any(|a| a.name == "Pet (Koner): slash" && a.damage == 50));
+        assert!(fight.damage_taken >= 12);
     }
 }
 
