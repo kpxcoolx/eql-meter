@@ -1,6 +1,6 @@
 [package]
 name = "eql-meter"
-version = "0.1.8"
+version = "0.1.9"
 description = "Real-time combat meter for EverQuest Legends"
 authors = ["EQ Legends"]
 license = "MIT"
