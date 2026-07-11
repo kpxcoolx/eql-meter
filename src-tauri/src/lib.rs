@@ -16,12 +16,16 @@ use settings::{
 };
 use spells::SpellCatalog;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
 struct AppState {
     tracker: Mutex<FightTracker>,
@@ -642,6 +646,37 @@ fn status(app: &AppHandle, state: &Arc<AppState>) -> OverlayStatus {
     }
 }
 
+fn shutdown_app(app: &AppHandle) {
+    if SHUTTING_DOWN.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    persist_window_geometry(app, "main");
+    if let Some(state) = app.try_state::<Arc<AppState>>() {
+        if let Some(handle) = state.tail.lock().take() {
+            handle.stop();
+        }
+        let _ = hide_overlay_inner(app, state.inner());
+    }
+    // Destroy any leftover windows (overlay can keep the process alive on Windows).
+    for (label, window) in app.webview_windows() {
+        if label != "main" {
+            let _ = window.destroy();
+        }
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.destroy();
+    }
+    let _ = app.global_shortcut().unregister_all();
+    app.exit(0);
+    // Hard fallback — if the event loop stalls (common with WebView2 + extra windows),
+    // still leave Task Manager clean.
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        std::process::exit(0);
+    });
+}
+
 fn emit_overlay_status(app: &AppHandle, state: &Arc<AppState>) {
     let _ = app.emit("overlay-status", status(app, state));
 }
@@ -718,20 +753,21 @@ pub fn run() {
                         persist_window_geometry(window.app_handle(), &label);
                     }
                 }
-                WindowEvent::CloseRequested { .. } => {
-                    // Overlay is a second window. If main closes while it is open,
-                    // Tauri keeps the process alive — white box + EQ watcher stay.
+                WindowEvent::CloseRequested { api, .. } => {
+                    // Overlay is a second window. Closing main must fully quit —
+                    // otherwise Windows leaves eql-meter.exe alive in Task Manager.
                     if window.label() != "main" {
                         return;
                     }
-                    let app = window.app_handle().clone();
-                    persist_window_geometry(&app, "main");
-                    if let Some(app_state) = app.try_state::<Arc<AppState>>() {
-                        let _ = hide_overlay_inner(&app, app_state.inner());
-                    }
-                    app.exit(0);
+                    api.prevent_close();
+                    shutdown_app(window.app_handle());
                 }
                 WindowEvent::Destroyed => {
+                    if window.label() == "main" {
+                        // Backup path if close skipped CloseRequested.
+                        shutdown_app(window.app_handle());
+                        return;
+                    }
                     if window.label() != "overlay" {
                         return;
                     }
