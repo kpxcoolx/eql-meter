@@ -4,7 +4,7 @@ Live combat meter for **EverQuest Legends** — tails your character log, tracks
 
 ![EQL Meter](docs/images/main-window.png)
 
-[Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest) · [Changelog](CHANGELOG.md) · [MIT License](LICENSE.md)
+[Latest release](https://github.com/kpxcoolx/eql-meter/releases/latest) · [Discussions](https://github.com/kpxcoolx/eql-meter/discussions) · [Changelog](CHANGELOG.md) · [MIT License](LICENSE.md)
 
 ---
 
@@ -52,6 +52,8 @@ Run EQ **windowed** or **borderless** so the overlay can sit on top.
 ---
 
 ## Contributors
+
+Feature ideas and questions: use [Discussions](https://github.com/kpxcoolx/eql-meter/discussions) (Ideas / Q&A). Bugs: open an [Issue](https://github.com/kpxcoolx/eql-meter/issues).
 
 ```bash
 npm install

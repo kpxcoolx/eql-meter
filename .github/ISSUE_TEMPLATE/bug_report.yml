@@ -1,0 +1,42 @@
+name: Bug report
+description: Something is broken or wrong (install, DPS, overlay, parsing).
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. For feature ideas, use [Discussions → Ideas](https://github.com/kpxcoolx/eql-meter/discussions/categories/ideas) instead.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows (installer)
+        - Windows (from source)
+        - Mac + Parallels
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: e.g. v0.1.3
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Steps to reproduce and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines (optional)
+      description: Paste a few combat lines if parsing looks wrong. Redact anything personal.
+      render: text
+    validations:
+      required: false
