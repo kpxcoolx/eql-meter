@@ -46,7 +46,7 @@ Example: `eqlog_Francis_legends.txt`
 | `Ctrl+Shift+U` | Make overlay clickable |
 | `Ctrl+Shift+L` | Click-through again |
 
-When the EQ client exits, the overlay **auto-hides** on Windows.
+EQ must be **windowed** or **borderless** (not exclusive fullscreen) for the overlay to appear above the game.
 
 ---
 
@@ -97,9 +97,9 @@ The first time you need this updater, install **v0.1.4+** once by hand. Later up
 | Idle while fighting | Logging on? **Find Legends log** / **Resume last log** |
 | Overlay blocks clicks | `Ctrl+Shift+L` |
 | Overlay white / opaque box | Update to the latest build (WebView2 transparency fix) |
+| Overlay not visible | Use windowed/borderless EQ (not exclusive fullscreen); update to latest build |
 | Terminal windows flashing | Update to the latest build; also fully quit — closing main now exits the overlay too |
 | Overlay stays after closing app | Update — closing the main window now closes the overlay and exits |
-| Overlay gone after closing EQ | Expected — reopen when you launch EQ |
 | Wrong character | Open the matching `eqlog_YourName_*.txt` |
 
 ---
