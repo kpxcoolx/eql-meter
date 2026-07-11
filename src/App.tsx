@@ -725,9 +725,9 @@ function App() {
       setPendingUpdate(update);
       setToast(`Update ${update.version} is available`);
     } catch (err) {
-      setError(
-        `Could not check for updates. Open the latest release page instead. (${String(err)})`
-      );
+      setPendingUpdate(null);
+      setToast("Update check failed — use Latest release…");
+      setError(String(err));
     } finally {
       setUpdateBusy(false);
     }
@@ -740,9 +740,9 @@ function App() {
     try {
       await installAppUpdate();
     } catch (err) {
-      setError(
-        `Update install failed. Try the release page instead. (${String(err)})`
-      );
+      setToast("Update install failed — use Latest release…");
+      setError(String(err));
+    } finally {
       setUpdateBusy(false);
     }
   }, []);
@@ -1332,6 +1332,15 @@ function App() {
                     Install {pendingUpdate.version}
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() =>
+                    runMenuAction(() => void openLatestReleasePage())
+                  }
+                >
+                  Latest release…
+                </button>
                 {appVersion ? (
                   <p className="menu-footer">Version {appVersion}</p>
                 ) : null}
