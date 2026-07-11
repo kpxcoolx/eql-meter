@@ -319,6 +319,25 @@ input {
   border-radius: 4px;
 }
 
+.hint-banner {
+  margin: 0.75rem 1.25rem 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(224, 168, 74, 0.4);
+  background: rgba(224, 168, 74, 0.12);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.hint-banner.warn {
+  border-color: rgba(196, 92, 72, 0.45);
+  background: rgba(196, 92, 72, 0.12);
+}
+
 .toast-banner {
   margin: 0.75rem 1.25rem 0;
   padding: 0.65rem 0.85rem;
@@ -327,6 +346,104 @@ input {
   color: #d7ebe3;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+.log-picker {
+  margin: 0.75rem 1.25rem 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(232, 196, 120, 0.22);
+  background: rgba(20, 16, 12, 0.72);
+  border-radius: 4px;
+}
+
+.log-picker-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.log-picker-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.log-picker-hint,
+.log-picker-empty {
+  margin: 0.45rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.log-picker-list {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.log-picker-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(232, 196, 120, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.log-picker-item:hover:not(:disabled) {
+  border-color: rgba(232, 196, 120, 0.4);
+  background: rgba(232, 196, 120, 0.08);
+}
+
+.log-picker-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.log-picker-name {
+  font-weight: 600;
+}
+
+.log-picker-source {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.log-picker-path {
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-picker-path-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.log-picker-input {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgba(232, 196, 120, 0.22);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  border-radius: 3px;
+  font: inherit;
 }
 
 .update-banner {
