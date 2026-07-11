@@ -62,7 +62,7 @@ jobs:
             After this build, use **Menu → Check for updates** for future releases.
 
             Full guide: docs/windows.md
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
