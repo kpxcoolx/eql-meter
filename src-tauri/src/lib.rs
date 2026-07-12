@@ -410,6 +410,10 @@ fn place_overlay_on_screen(app: &AppHandle, geometry: &WindowGeometry) -> Window
 
 #[tauri::command]
 fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<OverlayStatus, String> {
+    // Always open in setup mode (clickable) so the user can drag/position.
+    // Lock for game is an explicit second step — matches the EQLogParser flow.
+    *state.overlay_click_through.lock() = false;
+
     if let Some(window) = app.get_webview_window("overlay") {
         if let Some(current) = capture_window_geometry(&window) {
             if !geometry_visible_on_any_monitor(&app, &current) {
@@ -420,26 +424,20 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
         }
         let _ = window.set_always_on_top(true);
         window.show().map_err(|e| e.to_string())?;
-        let click_through = *state.overlay_click_through.lock();
         window
-            .set_ignore_cursor_events(click_through)
+            .set_ignore_cursor_events(false)
             .map_err(|e| e.to_string())?;
-        // Don't steal focus from the game unless the user needs to click the meter.
-        if !click_through {
-            let _ = window.set_focus();
-        }
+        let _ = window.set_focus();
         *state.overlay_open.lock() = true;
         emit_overlay_status(&app, &state);
         return Ok(status(&app, &state));
     }
 
-    *state.overlay_click_through.lock() = false;
-
     let settings = load_settings(&app);
     let mut builder =
         WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("overlay.html".into()))
             .title("EQL Overlay")
-            .inner_size(380.0, 80.0)
+            .inner_size(380.0, 100.0)
             .min_inner_size(300.0, 54.0)
             .resizable(false)
             .decorations(false)
@@ -447,7 +445,9 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
             .visible_on_all_workspaces(true)
             .skip_taskbar(true)
             .focused(true)
-            .visible(true);
+            .visible(true)
+            // File drag-drop can steal mouse events and break window dragging on Windows.
+            .drag_and_drop(false);
 
     // Windows WebView2 often fails with fully transparent windows (invisible or white).
     // Use an opaque dark chrome there; Mac keeps true transparency.
@@ -471,12 +471,12 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
         x: 80.0,
         y: 80.0,
         width: 380.0,
-        height: 80.0,
+        height: 100.0,
     });
     let safe = place_overlay_on_screen(&app, &seed);
     builder = builder
         .position(safe.x, safe.y)
-        .inner_size(safe.width.max(300.0), safe.height.max(80.0));
+        .inner_size(safe.width.max(300.0), safe.height.max(100.0));
 
     let window = builder.build().map_err(|e| e.to_string())?;
 

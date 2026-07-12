@@ -73,8 +73,14 @@ body,
   color: var(--text);
 }
 
+.overlay-shell.setup {
+  border-color: rgba(224, 168, 74, 0.55);
+  cursor: grab;
+}
+
 .overlay-shell.locked {
   border-color: rgba(111, 158, 140, 0.55);
+  cursor: default;
 }
 
 .overlay-top {
@@ -111,9 +117,6 @@ body,
 .overlay-drag {
   min-width: 12px;
   height: 100%;
-  cursor: grab;
-  -webkit-app-region: drag;
-  app-region: drag;
 }
 
 .overlay-tools,
@@ -121,19 +124,45 @@ body,
 .overlay-menu,
 .overlay-menu *,
 .overlay-icon,
-.overlay-col-label {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+.overlay-lock-btn {
+  cursor: pointer;
 }
 
 .overlay-tools {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   justify-self: start;
   z-index: 5;
+}
+
+.overlay-live-label {
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 4px;
+}
+
+.overlay-lock-btn {
+  border: 1px solid rgba(224, 168, 74, 0.55);
+  background: rgba(224, 168, 74, 0.22);
+  color: var(--amber-hot);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 3px;
+}
+
+.overlay-lock-btn:hover {
+  background: rgba(224, 168, 74, 0.38);
+  color: #fff;
 }
 
 .overlay-col-label {
@@ -142,6 +171,21 @@ body,
   font-weight: 600;
   letter-spacing: 0.02em;
   text-align: right;
+}
+
+.overlay-banner {
+  margin: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  height: 24px;
+  box-sizing: border-box;
+}
+
+.overlay-banner.setup {
+  background: rgba(224, 168, 74, 0.22);
+  color: var(--amber-hot);
 }
 
 .overlay-icon {
@@ -266,8 +310,6 @@ body,
   height: 22px;
   border-top: 1px solid var(--line);
   background: rgba(224, 168, 74, 0.1);
-  -webkit-app-region: drag;
-  app-region: drag;
 }
 
 .overlay-shell.compact .overlay-fight {

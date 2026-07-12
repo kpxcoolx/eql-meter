@@ -23,6 +23,7 @@ type OverlayPrefs = {
 const PREFS_KEY = "eql-overlay-prefs";
 const OVERLAY_WIDTH = 380;
 const MENU_H = 210;
+const BANNER_H = 24;
 
 const DEFAULT_PREFS: OverlayPrefs = {
   maxRows: 5,
@@ -72,6 +73,7 @@ export default function Overlay() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [prefs, setPrefs] = useState<OverlayPrefs>(() => loadPrefs());
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const setupMode = !clickThrough;
 
   useEffect(() => {
     invoke<MeterState>("get_meter_state")
@@ -110,7 +112,7 @@ export default function Overlay() {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 1400);
+    const timer = window.setTimeout(() => setToast(null), 1600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -130,7 +132,6 @@ export default function Overlay() {
       const target = event.target as Node | null;
       if (!target) return;
       if (menuRef.current?.contains(target)) return;
-      // Gear toggles itself; don't race-close on the same click.
       if ((event.target as HTMLElement | null)?.closest?.(".overlay-tools")) {
         return;
       }
@@ -157,17 +158,21 @@ export default function Overlay() {
     }
   }
 
-  async function enableClickThrough() {
+  async function setLiveMode(enabled: boolean) {
     try {
       const status = await invoke<OverlayStatus>("set_overlay_click_through", {
-        enabled: true,
+        enabled,
       });
       setClickThrough(status.click_through);
-      setToast("Click-through locked");
+      if (enabled) {
+        setMenuOpen(false);
+        setToast("Locked — clicks go to the game");
+      } else {
+        setToast("Setup — drag to move, then Lock");
+      }
     } catch (err) {
       setToast(String(err));
     }
-    setMenuOpen(false);
   }
 
   // Overlay follows live combat only — don't stick on a finished fight name.
@@ -208,6 +213,21 @@ export default function Overlay() {
     setMenuOpen(false);
   }
 
+  // WebView2 often ignores data-tauri-drag-region on nested text — call startDragging.
+  function beginDrag(event: React.PointerEvent) {
+    if (event.button !== 0) return;
+    if (clickThrough) return;
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest("button, a, input, .overlay-tools, .overlay-menu")) {
+      return;
+    }
+    event.preventDefault();
+    void getCurrentWindow()
+      .startDragging()
+      .catch(() => undefined);
+  }
+
   const rows = useMemo(() => {
     if (!fight) return [];
     const total = fight.total_damage;
@@ -232,22 +252,32 @@ export default function Overlay() {
   const fightBarH = fight ? 22 : 0;
   const rowH = Math.max(22, prefs.fontSize + 10);
   const toastH = 22;
-  const lockHintH = clickThrough ? toastH : 0;
+  const setupBannerH = setupMode ? BANNER_H : 0;
   const bodyRows = fight ? Math.max(rows.length, 1) : 1;
 
   useEffect(() => {
     const h =
       headerH +
+      setupBannerH +
       fightBarH +
-      (menuOpen ? MENU_H : 0) +
+      (menuOpen && setupMode ? MENU_H : 0) +
       (toast ? toastH : 0) +
-      lockHintH +
       bodyRows * rowH +
       2;
     void getCurrentWindow()
       .setSize(new LogicalSize(OVERLAY_WIDTH, Math.max(h, headerH + rowH + 2)))
       .catch(() => undefined);
-  }, [bodyRows, toast, headerH, fightBarH, rowH, toastH, lockHintH, menuOpen]);
+  }, [
+    bodyRows,
+    toast,
+    headerH,
+    fightBarH,
+    rowH,
+    toastH,
+    setupBannerH,
+    menuOpen,
+    setupMode,
+  ]);
 
   const shellStyle = {
     ["--overlay-font" as string]: `${prefs.fontSize}px`,
@@ -258,83 +288,105 @@ export default function Overlay() {
 
   return (
     <div
-      className={`overlay-shell ${clickThrough ? "locked" : ""} ${
+      className={`overlay-shell ${clickThrough ? "locked" : "setup"} ${
         prefs.showPercent ? "show-pct" : ""
       }`}
       style={shellStyle}
+      onPointerDown={beginDrag}
     >
-      <header className="overlay-top">
-        <div className="overlay-tools">
-          <button
-            type="button"
-            className={`overlay-icon ${menuOpen ? "active" : ""}`}
-            title="Setup"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-label="Setup"
-          >
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-              <circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
-              <path
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="overlay-icon"
-            title="Copy parse"
-            onClick={() => void copyParse()}
-            disabled={!fight}
-            aria-label="Copy parse"
-          >
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-              <rect
-                x="5.5"
-                y="2.5"
-                width="7"
-                height="9"
-                rx="1"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-              />
-              <path
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.3"
-                d="M3.5 5.5h6v8h-6a1 1 0 01-1-1v-6a1 1 0 011-1z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="overlay-icon close"
-            title="Close overlay"
-            onClick={() => void closeOverlay()}
-            aria-label="Close overlay"
-          >
-            ✕
-          </button>
-        </div>
+      <header className="overlay-top" title="Drag to move overlay">
+        {setupMode ? (
+          <div className="overlay-tools">
+            <button
+              type="button"
+              className={`overlay-icon ${menuOpen ? "active" : ""}`}
+              title="Setup"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Setup"
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="overlay-icon"
+              title="Copy parse"
+              onClick={() => void copyParse()}
+              disabled={!fight}
+              aria-label="Copy parse"
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+                <rect
+                  x="5.5"
+                  y="2.5"
+                  width="7"
+                  height="9"
+                  rx="1"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  d="M3.5 5.5h6v8h-6a1 1 0 01-1-1v-6a1 1 0 011-1z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="overlay-lock-btn"
+              title="Lock for game — clicks pass through to EverQuest"
+              onClick={() => void setLiveMode(true)}
+            >
+              Lock
+            </button>
+            <button
+              type="button"
+              className="overlay-icon close"
+              title="Close overlay"
+              onClick={() => void closeOverlay()}
+              aria-label="Close overlay"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <span className="overlay-live-label">LIVE</span>
+        )}
 
-        <div className="overlay-drag" data-tauri-drag-region title="Drag overlay" />
+        <div className="overlay-drag" title="Drag overlay" />
 
-        {prefs.showPercent ? <span className="overlay-col-label">%</span> : null}
+        {prefs.showPercent ? (
+          <span className="overlay-col-label">%</span>
+        ) : null}
         <span className="overlay-col-label">Damage</span>
         <span className="overlay-col-label">DPS</span>
         <span className="overlay-col-label">Sec</span>
       </header>
 
-      {clickThrough ? (
-        <p className="overlay-toast">
-          Click-through on — Ctrl+Shift+U to unlock, or Close Overlay in main
+      {setupMode ? (
+        <p className="overlay-banner setup">
+          Setup — drag anywhere, then Lock for game
         </p>
       ) : null}
 
-      {menuOpen ? (
+      {menuOpen && setupMode ? (
         <div className="overlay-menu" ref={menuRef}>
           <p className="overlay-menu-section">Meter</p>
           <button
@@ -347,8 +399,8 @@ export default function Overlay() {
           <button type="button" onClick={() => void clearFights()}>
             Clear fight history
           </button>
-          <button type="button" onClick={() => void enableClickThrough()}>
-            Click-through to game
+          <button type="button" onClick={() => void setLiveMode(true)}>
+            Lock for game
           </button>
 
           <p className="overlay-menu-section">Look</p>
@@ -391,7 +443,7 @@ export default function Overlay() {
           </button>
 
           <p className="overlay-menu-hint">
-            Make clickable: Ctrl/Cmd+Shift+U
+            Unlock later: Ctrl/Cmd+Shift+U · or Close Overlay in main
           </p>
         </div>
       ) : null}
@@ -418,9 +470,13 @@ export default function Overlay() {
                       {name}
                     </span>
                     {prefs.showPercent ? (
-                      <span className="overlay-num pct">{formatPct(row.pct)}</span>
+                      <span className="overlay-num pct">
+                        {formatPct(row.pct)}
+                      </span>
                     ) : null}
-                    <span className="overlay-num">{formatNumber(row.damage)}</span>
+                    <span className="overlay-num">
+                      {formatNumber(row.damage)}
+                    </span>
                     <span className="overlay-num">{formatDps(row.dps)}</span>
                     <span className="overlay-num">
                       {Math.max(1, Math.floor(row.secs))}
@@ -430,12 +486,13 @@ export default function Overlay() {
               })
             )}
           </div>
-          <div className="overlay-fight" data-tauri-drag-region>
+          <div className="overlay-fight">
             <span className="overlay-fight-target" title={fight.target}>
               {shortName(fight.target, 28)}
             </span>
             <span className="overlay-fight-meta">
-              {formatDps(fightDps)} DPS · {Math.max(1, Math.floor(liveDuration))}s
+              {formatDps(fightDps)} DPS ·{" "}
+              {Math.max(1, Math.floor(liveDuration))}s
             </span>
           </div>
         </>

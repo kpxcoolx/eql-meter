@@ -15,13 +15,13 @@ You do **not** need Node, Rust, or Git.
 2. Run the installer (current-user; **no admin**)
 3. Start **EQL Meter**
 4. Click **Find Legends log** (or **Menu → Monitor → Find Legends log**)
-5. Open **Overlay** — confirm the popup, then enable click-through if you need clicks to reach the game
+5. Open **Overlay** — drag the small meter into place, click **Lock**, then play
 
 ### Ready when…
 
 - [ ] EQ logging is **on**
 - [ ] Meter shows **Monitoring** + your character name
-- [ ] Overlay opened (confirmation popup) and click-through is on if you want
+- [ ] Overlay opened, positioned, and **Locked** so clicks reach EQ
 - [ ] EQ is **windowed** or **borderless** (not exclusive fullscreen)
 
 ---
@@ -39,14 +39,18 @@ Example: `eqlog_Francis_legends.txt`
 
 ## Overlay
 
+The overlay is a **small always-on-top meter** (not the main window). On Windows it is an opaque dark bar so WebView2 stays visible.
+
 | Control | What it does |
 |---------|----------------|
-| **Overlay** button | Open / close (shows a confirmation with screen position) |
-| Click-through | Mouse reaches the game |
-| `Ctrl+Shift+U` | Make overlay clickable |
-| `Ctrl+Shift+L` | Click-through again |
+| **Overlay** button | Open / close — always opens in **setup** (clickable) |
+| Drag anywhere | Move the meter while in setup |
+| **Lock** on the overlay | Live mode — clicks pass through to EQ |
+| `Ctrl+Shift+U` | Unlock / setup again |
+| `Ctrl+Shift+L` | Lock for game |
+| Menu → Lock / Unlock | Same as above from the main window |
 
-EQ must be **windowed** or **borderless** (not exclusive fullscreen) for the overlay to appear above the game. On Windows the overlay uses a dark opaque bar so WebView2 stays visible.
+EQ must be **windowed** or **borderless** (not exclusive fullscreen) for the overlay to appear above the game.
 
 ---
 
@@ -95,8 +99,9 @@ The updater reads `latest.json` from the **Latest** GitHub release. CI only publ
 |---------|-----|
 | No log found | Confirm the path above → **Choose log…** |
 | Idle while fighting | Logging on? **Find Legends log** / **Resume last log** |
-| Overlay blocks clicks | `Ctrl+Shift+L` |
-| Overlay not visible | Use windowed/borderless EQ; note the position in the confirmation popup; update to **v0.1.8+** |
+| Overlay blocks clicks | Click **Lock** on the overlay, or `Ctrl+Shift+L` / Menu → Lock for game |
+| Overlay won’t move | It opens in setup — drag anywhere on the meter. If locked, unlock first (`Ctrl+Shift+U`) |
+| Overlay not visible | Use windowed/borderless EQ; toast shows position; update to latest |
 | Copy Parse did nothing | You should get a confirmation popup — if you see an error, update or report it |
 | Pet name in the Fights list | Update to **v0.1.8+**; or right-click → **Delete fight** |
 | Terminal windows flashing | Update to the latest build; also fully quit — closing main now exits the overlay too |
