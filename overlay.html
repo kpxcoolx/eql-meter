@@ -5,26 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EQL Overlay</title>
     <style>
-      /* Opaque fallback so Windows WebView2 always paints something readable
-         even before the bundled CSS loads. */
+      /* Visible shell before React loads — empty #root was a black unmovable box on WebView2. */
       html,
       body,
       #root {
         margin: 0;
         background: #12100e !important;
         color: #f3ebe0;
-        font-family: "Segoe UI", sans-serif;
+        font-family: "Segoe UI", "Source Sans 3", sans-serif;
+      }
+      #eql-boot {
+        box-sizing: border-box;
+        min-height: 72px;
+        border: 1px solid rgba(232, 196, 120, 0.45);
+        cursor: grab;
+        user-select: none;
+      }
+      #eql-boot-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(232, 196, 120, 0.22);
+        background: rgba(224, 168, 74, 0.16);
+      }
+      #eql-boot-top strong {
+        color: #e0a84a;
+        font-size: 13px;
+      }
+      #eql-boot-top span {
+        color: #a89880;
+        font-size: 12px;
+      }
+      #eql-boot-body {
+        padding: 8px;
+        color: #a89880;
+        font-size: 13px;
       }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="eql-boot" title="Drag to move">
+        <div id="eql-boot-top">
+          <strong>EQL Overlay</strong>
+          <span>Drag anywhere · waiting for UI…</span>
+        </div>
+        <div id="eql-boot-body">If this stays here, reinstall the latest build.</div>
+      </div>
+    </div>
+    <script>
+      // Works even if the module bundle fails — withGlobalTauri exposes __TAURI__.
+      (function () {
+        function beginDrag(event) {
+          if (event.button !== 0) return;
+          var target = event.target;
+          if (target && target.closest && target.closest("button, a, input")) return;
+          try {
+            var api = window.__TAURI__;
+            if (api && api.window && api.window.getCurrentWindow) {
+              api.window.getCurrentWindow().startDragging();
+              return;
+            }
+          } catch (_) {}
+          try {
+            var core = window.__TAURI_INTERNALS__;
+            if (core && core.invoke) {
+              core.invoke("plugin:window|start_dragging");
+            }
+          } catch (_) {}
+        }
+        document.addEventListener("mousedown", beginDrag, true);
+      })();
+    </script>
     <script type="module" src="/src/overlay-main.tsx"></script>
   </body>
 </html>

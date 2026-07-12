@@ -7,10 +7,25 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      // WebView2 custom protocol can fail ES module loads that use crossorigin.
+      name: "eql-strip-overlay-crossorigin",
+      transformIndexHtml: {
+        order: "post",
+        handler(html, ctx) {
+          const path = ctx.filename || ctx.path || "";
+          if (!path.includes("overlay")) return html;
+          return html.replace(/(\s)crossorigin(="[^"]*")?/g, "");
+        },
+      },
+    },
+  ],
   // Relative asset URLs so overlay.html can load JS/CSS in the packaged app.
   base: "./",
   build: {
+    modulePreload: false,
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
