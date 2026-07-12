@@ -409,48 +409,70 @@ fn place_overlay_on_screen(app: &AppHandle, geometry: &WindowGeometry) -> Window
 }
 
 #[tauri::command]
-fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<OverlayStatus, String> {
+async fn show_overlay(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<OverlayStatus, String> {
+    // async is required on Windows — sync WebviewWindowBuilder::build from a
+    // command blanks / freezes the secondary WebView2.
+    show_overlay_inner(&app, state.inner())
+}
+
+fn show_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayStatus, String> {
     // Always open in setup mode (clickable) so the user can drag/position.
-    // Lock for game is an explicit second step — matches the EQLogParser flow.
     *state.overlay_click_through.lock() = false;
 
     if let Some(window) = app.get_webview_window("overlay") {
         if let Some(current) = capture_window_geometry(&window) {
-            if !geometry_visible_on_any_monitor(&app, &current) {
-                let safe = place_overlay_on_screen(&app, &current);
+            if !geometry_visible_on_any_monitor(app, &current) {
+                let safe = place_overlay_on_screen(app, &current);
                 apply_window_geometry(&window, &safe);
-                let _ = remember_window(&app, "overlay", safe);
+                let _ = remember_window(app, "overlay", safe);
             }
         }
         let _ = window.set_always_on_top(true);
-        window.show().map_err(|e| e.to_string())?;
         window
             .set_ignore_cursor_events(false)
             .map_err(|e| e.to_string())?;
+        // Reload so a previously blank WebView2 gets a fresh document.
+        let _ = window.eval(
+            "if (!document.documentElement.dataset.eqlReady) { location.reload(); }",
+        );
+        window.show().map_err(|e| e.to_string())?;
         let _ = window.set_focus();
         *state.overlay_open.lock() = true;
-        emit_overlay_status(&app, &state);
-        return Ok(status(&app, &state));
+        emit_overlay_status(app, state);
+        return Ok(status(app, state));
     }
 
-    let settings = load_settings(&app);
+    let window = create_overlay_window(app)?;
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_ignore_cursor_events(false);
+    let _ = window.show();
+    let _ = window.set_focus();
+
+    *state.overlay_open.lock() = true;
+    emit_overlay_status(app, state);
+    Ok(status(app, state))
+}
+
+fn create_overlay_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    let settings = load_settings(app);
     let mut builder =
-        WebviewWindowBuilder::new(&app, "overlay", WebviewUrl::App("overlay.html".into()))
+        WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
             .title("EQL Overlay")
-            .inner_size(380.0, 100.0)
+            .inner_size(380.0, 120.0)
             .min_inner_size(300.0, 54.0)
             .resizable(false)
             .decorations(false)
             .always_on_top(true)
             .visible_on_all_workspaces(true)
             .skip_taskbar(true)
-            .focused(true)
-            .visible(true)
-            // File drag-drop can steal mouse events and break window dragging on Windows.
+            .focused(false)
+            // Start hidden; show after create so Windows does not flash a dead surface.
+            .visible(false)
             .drag_and_drop(false);
 
-    // Windows WebView2 often fails with fully transparent windows (invisible or white).
-    // Use an opaque dark chrome there; Mac keeps true transparency.
     #[cfg(target_os = "windows")]
     {
         builder = builder
@@ -466,38 +488,27 @@ fn show_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Overl
             .background_color(tauri::window::Color(0, 0, 0, 0));
     }
 
-    // Always land on a visible monitor — saved coords from another display are common.
     let seed = settings.overlay_window.clone().unwrap_or(WindowGeometry {
         x: 80.0,
         y: 80.0,
         width: 380.0,
-        height: 100.0,
+        height: 120.0,
     });
-    let safe = place_overlay_on_screen(&app, &seed);
+    let safe = place_overlay_on_screen(app, &seed);
     builder = builder
         .position(safe.x, safe.y)
         .inner_size(safe.width.max(300.0), safe.height.max(100.0));
 
     let window = builder.build().map_err(|e| e.to_string())?;
 
-    // Keep the meter floating above the game; re-assert after create.
-    let _ = window.set_always_on_top(true);
-    let _ = window.set_ignore_cursor_events(false);
     #[cfg(target_os = "windows")]
     let _ = window.set_background_color(Some(tauri::window::Color(18, 16, 14, 255)));
     #[cfg(not(target_os = "windows"))]
     let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
 
     apply_window_geometry(&window, &safe);
-    let _ = remember_window(&app, "overlay", safe);
-    let _ = window.show();
-    let _ = window.set_focus();
-    // Ensure the overlay document actually loads (blank WebView2 cases).
-    let _ = window.eval("void 0");
-
-    *state.overlay_open.lock() = true;
-    emit_overlay_status(&app, &state);
-    Ok(status(&app, &state))
+    let _ = remember_window(app, "overlay", safe);
+    Ok(window)
 }
 
 fn hide_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayStatus, String> {
@@ -506,7 +517,8 @@ fn hide_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayS
             let _ = remember_window(app, "overlay", geometry);
         }
         let _ = window.set_ignore_cursor_events(false);
-        window.close().map_err(|e| e.to_string())?;
+        // Hide instead of close — recreating WebView2 from a command is flaky on Windows.
+        window.hide().map_err(|e| e.to_string())?;
     }
     *state.overlay_open.lock() = false;
     *state.overlay_click_through.lock() = false;
@@ -515,25 +527,26 @@ fn hide_overlay_inner(app: &AppHandle, state: &Arc<AppState>) -> Result<OverlayS
 }
 
 #[tauri::command]
-fn hide_overlay(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<OverlayStatus, String> {
+async fn hide_overlay(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<OverlayStatus, String> {
     hide_overlay_inner(&app, state.inner())
 }
 
 #[tauri::command]
-fn toggle_overlay(
+async fn toggle_overlay(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<OverlayStatus, String> {
-    // Prefer the real window over the flag — flag can drift and leave a
-    // stuck overlay that "Overlay" would only re-show instead of closing.
     let window_open = app
         .get_webview_window("overlay")
-        .map(|w| w.is_visible().unwrap_or(true))
+        .map(|w| w.is_visible().unwrap_or(false))
         .unwrap_or(false);
     if window_open || *state.overlay_open.lock() {
-        hide_overlay(app, state)
+        hide_overlay_inner(&app, state.inner())
     } else {
-        show_overlay(app, state)
+        show_overlay_inner(&app, state.inner())
     }
 }
 
@@ -626,7 +639,7 @@ fn status(app: &AppHandle, state: &Arc<AppState>) -> OverlayStatus {
     let window = app.get_webview_window("overlay");
     let open = window
         .as_ref()
-        .map(|w| w.is_visible().unwrap_or(true))
+        .map(|w| w.is_visible().unwrap_or(false))
         .unwrap_or(false);
     *state.overlay_open.lock() = open;
     let click_through = *state.overlay_click_through.lock();
@@ -837,6 +850,12 @@ pub fn run() {
             app.global_shortcut()
                 .register(Shortcut::new(Some(mods), Code::KeyL))
                 .map_err(|e| e.to_string())?;
+
+            // Create overlay on the main thread at startup (hidden). Creating it later
+            // from a sync IPC command blanks WebView2 on Windows.
+            if let Err(err) = create_overlay_window(app.handle()) {
+                eprintln!("overlay pre-create failed: {err}");
+            }
 
             Ok(())
         })

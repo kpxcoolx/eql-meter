@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.17] — 2026-07-12
+
+### Fixed
+
+- Windows overlay black unmovable box: create the overlay WebView on startup (async-safe), hide instead of destroy, strip `crossorigin` on overlay assets, and ship a visible HTML boot shell with drag even if React fails to mount.
+
 ## [0.1.16] — 2026-07-12
 
 ### Changed
@@ -120,7 +126,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.16...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.17...HEAD
+[0.1.17]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.16
 [0.1.10]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.10
 [0.1.9]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.9

@@ -76,6 +76,7 @@ export default function Overlay() {
   const setupMode = !clickThrough;
 
   useEffect(() => {
+    document.documentElement.dataset.eqlReady = "1";
     invoke<MeterState>("get_meter_state")
       .then(setMeter)
       .catch(() => setMeter(null));
