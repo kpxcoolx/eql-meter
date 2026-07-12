@@ -1181,7 +1181,7 @@ function App() {
             ? ` at ${Math.round(status.x)}, ${Math.round(status.y)}`
             : "";
         setToast(
-          `Overlay open${where}. Use Close Overlay or ✕ to dismiss.`
+          `Overlay open${where}. Drag to place, then Lock for game.`
         );
       } else {
         setToast("Overlay closed");
@@ -1497,7 +1497,7 @@ function App() {
                   }
                   title="Ctrl/Cmd+Shift+U clickable · L click-through"
                 >
-                  {overlayClickThrough ? "Make overlay clickable" : "Click-through to game"}
+                  {overlayClickThrough ? "Unlock overlay (setup)" : "Lock for game"}
                 </button>
                 <div className="menu-divider" />
                 <button

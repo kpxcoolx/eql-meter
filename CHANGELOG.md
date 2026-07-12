@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.16] — 2026-07-12
+
+### Changed
+
+- Overlay uses a clear **setup → lock** flow on Windows: opens clickable so you can drag it, then **Lock** sends clicks to the game (same idea as EQLogParser’s configure vs live meter).
+
+### Fixed
+
+- Windows overlay drag-to-move: whole meter is draggable in setup via `startDragging` (not a tiny HTML gap WebView2 often missed).
+
 ## [0.1.10] — 2026-07-11
 
 ### Fixed
@@ -110,7 +120,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.10...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.16...HEAD
+[0.1.16]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.16
 [0.1.10]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.10
 [0.1.9]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.9
 [0.1.8]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.8
