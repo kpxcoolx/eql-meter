@@ -896,7 +896,12 @@ impl FightTracker {
     fn on_heal(&mut self, heal: HealEvent, now: f64) {
         // Attach heals to the active fight; don't open a new fight from heals alone.
         let healer = self.resolve_attacker(&heal.healer).owner;
-        let target = self.resolve_attacker(&heal.target).owner;
+        // "Kenkyo healed itself" / "yourself" → credit the healer, not a phantom row.
+        let target = if is_reflexive_label(&heal.target) {
+            healer.clone()
+        } else {
+            self.resolve_attacker(&heal.target).owner
+        };
         let count_healer = !self.self_only || self.is_self_combatant(&healer);
         let count_receiver = !self.self_only || self.is_self_combatant(&target);
         if self.self_only && !count_healer && !count_receiver {
@@ -1076,15 +1081,15 @@ impl FightTracker {
     }
 
     fn resolve_attacker(&mut self, raw: &str) -> ResolvedAttacker {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
+        let cleaned = clean_combatant_name(raw);
+        if cleaned.is_empty() {
             return ResolvedAttacker {
-                owner: trimmed.to_string(),
+                owner: cleaned,
                 pet: None,
             };
         }
 
-        if is_self_label(trimmed) {
+        if is_self_label(&cleaned) {
             let owner = self
                 .character
                 .clone()
@@ -1096,7 +1101,7 @@ impl FightTracker {
         }
 
         // "Your pet" / "My pet" / "Your fire elemental" → you + pet label
-        if let Some(rest) = strip_your_prefix(trimmed) {
+        if let Some(rest) = strip_your_prefix(&cleaned) {
             let owner = self
                 .character
                 .clone()
@@ -1112,7 +1117,7 @@ impl FightTracker {
         }
 
         // "Francis's pet" / "Francis`s pet" / "Francis pet"
-        if let Some(owner) = owner_from_pet_label(trimmed) {
+        if let Some(owner) = owner_from_pet_label(&cleaned) {
             return ResolvedAttacker {
                 owner,
                 pet: Some("Pet".to_string()),
@@ -1120,20 +1125,21 @@ impl FightTracker {
         }
 
         // Named pet we already mapped to an owner
-        if let Some(owner) = self.pet_owners.get(&trimmed.to_ascii_lowercase()) {
+        if let Some(owner) = self.pet_owners.get(&cleaned.to_ascii_lowercase()) {
             return ResolvedAttacker {
                 owner: owner.clone(),
-                pet: Some(trimmed.to_string()),
+                pet: Some(cleaned),
             };
         }
 
         ResolvedAttacker {
-            owner: trimmed.to_string(),
+            owner: cleaned,
             pet: None,
         }
     }
 
     /// Remember that a pet name belongs to an owner (usually you).
+    /// Also folds any damage already credited under that pet name into the owner.
     pub fn note_pet(&mut self, pet_name: &str, owner: &str) {
         let key = pet_name.trim().to_ascii_lowercase();
         if key.is_empty() || key == "pet" {
@@ -1145,6 +1151,21 @@ impl FightTracker {
             }
         }
         self.pet_owners.insert(key, owner.to_string());
+        self.fold_pet_into_owner(pet_name, owner);
+    }
+
+    /// Move a mistaken separate player row (named pet) onto the owner.
+    fn fold_pet_into_owner(&mut self, pet_name: &str, owner: &str) {
+        let pet_name = pet_name.trim();
+        if pet_name.is_empty() || pet_name.eq_ignore_ascii_case(owner) {
+            return;
+        }
+        for fight in self.active.values_mut() {
+            fold_pet_player_into_owner(fight, pet_name, owner);
+        }
+        for fight in &mut self.recent {
+            fold_pet_player_into_owner(fight, pet_name, owner);
+        }
     }
 
     fn is_owned_pet(&self, name: &str) -> bool {
@@ -1249,6 +1270,89 @@ fn is_self_label(name: &str) -> bool {
         || name.eq_ignore_ascii_case("your")
         || name.eq_ignore_ascii_case("yourself")
         || name.eq_ignore_ascii_case("me")
+        || is_reflexive_label(name)
+}
+
+/// "itself" / "himself" / "herself" — self-heal pronouns, not real combatants.
+fn is_reflexive_label(name: &str) -> bool {
+    name.eq_ignore_ascii_case("itself")
+        || name.eq_ignore_ascii_case("himself")
+        || name.eq_ignore_ascii_case("herself")
+}
+
+/// Drop trailing " over time" from HoT/DoT combatant labels.
+fn clean_combatant_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if let Some(base) = lower.strip_suffix(" over time") {
+        return trimmed[..base.len()].trim().to_string();
+    }
+    trimmed.to_string()
+}
+
+/// Fold a pet that was wrongly listed as its own player into the owner.
+fn fold_pet_player_into_owner(fight: &mut Fight, pet_name: &str, owner: &str) {
+    let pet_key = fight
+        .players
+        .keys()
+        .find(|name| name.eq_ignore_ascii_case(pet_name))
+        .cloned();
+    let Some(pet_key) = pet_key else {
+        return;
+    };
+    if pet_key.eq_ignore_ascii_case(owner) {
+        return;
+    }
+    let Some(pet_accum) = fight.players.remove(&pet_key) else {
+        return;
+    };
+
+    let owner_entry = fight.players.entry(owner.to_string()).or_default();
+    owner_entry.damage += pet_accum.damage;
+    owner_entry.hits += pet_accum.hits;
+    owner_entry.crits += pet_accum.crits;
+    owner_entry.max_hit = owner_entry.max_hit.max(pet_accum.max_hit);
+    owner_entry.attempts += pet_accum.attempts;
+    owner_entry.misses += pet_accum.misses;
+    owner_entry.healing += pet_accum.healing;
+    owner_entry.overheal += pet_accum.overheal;
+    owner_entry.healing_received += pet_accum.healing_received;
+
+    for (sec, amount) in pet_accum.timeline {
+        *owner_entry.timeline.entry(sec).or_insert(0) += amount;
+    }
+    for (sec, amount) in pet_accum.heal_timeline {
+        *owner_entry.heal_timeline.entry(sec).or_insert(0) += amount;
+    }
+
+    for (_, ability) in pet_accum.abilities {
+        let ability_name = if ability.name.starts_with("Pet (") {
+            ability.name.clone()
+        } else {
+            format!("Pet ({pet_name}): {}", ability.name)
+        };
+        let entry = owner_entry
+            .abilities
+            .entry(ability_name.clone())
+            .or_insert(AbilityStat {
+                name: ability_name,
+                hits: 0,
+                damage: 0,
+                healing: 0,
+            });
+        entry.hits += ability.hits;
+        entry.damage += ability.damage;
+        entry.healing += ability.healing;
+    }
+
+    if fight
+        .max_hit_by
+        .as_ref()
+        .map(|name| name.eq_ignore_ascii_case(&pet_key))
+        .unwrap_or(false)
+    {
+        fight.max_hit_by = Some(owner.to_string());
+    }
 }
 
 fn strip_your_prefix(label: &str) -> Option<&str> {
@@ -1981,6 +2085,90 @@ mod tests {
         assert!(snap.active_fights.is_empty());
         assert!(snap.active_fight.is_none());
         assert!(snap.recent_fights.is_empty());
+    }
+
+    #[test]
+    fn pet_damage_before_learn_is_folded_into_owner() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // You open the fight, then the pet swings before we learn its name.
+        tracker.ingest(hit(100.0, "Overseer of Agony", 100));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Jebarer".into(),
+            target: "Overseer of Agony".into(),
+            amount: 50,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        // Still a separate row until the mob hits the pet (or Your … line).
+        let mid = tracker.snapshot().active_fight.expect("fight");
+        assert!(mid.players.iter().any(|p| p.name == "Jebarer"));
+
+        // Mob hits the pet → learn + retro-merge prior damage onto Kenkyo.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "Overseer of Agony".into(),
+            target: "Jebarer".into(),
+            amount: 8,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 150);
+        assert!(fight
+            .players[0]
+            .abilities
+            .iter()
+            .any(|a| a.name == "Pet (Jebarer): slash" && a.damage == 50));
+        assert!(!fight.players.iter().any(|p| p.name == "Jebarer"));
+    }
+
+    #[test]
+    fn itself_and_over_time_heals_do_not_create_phantom_players() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "The Spiroc Guardian", 100));
+        tracker.ingest(CombatEvent::Heal(crate::parse::HealEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            healer: "Kenkyo".into(),
+            target: "itself".into(),
+            amount: 40,
+            overheal: 0,
+            spell: "Minor Healing".into(),
+        }));
+        tracker.ingest(CombatEvent::Heal(crate::parse::HealEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.3),
+            healer: "You".into(),
+            target: "Kenkyo over time".into(),
+            amount: 20,
+            overheal: 0,
+            spell: "Blood Siphon Strike".into(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(!fight.players.iter().any(|p| p.name.eq_ignore_ascii_case("itself")));
+        assert!(!fight
+            .players
+            .iter()
+            .any(|p| p.name.to_ascii_lowercase().contains("over time")));
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].healing, 60);
     }
 }
 

@@ -988,6 +988,52 @@ function App() {
       .reduce((sum, a) => sum + a.damage, 0);
   }, [selectedPlayerStat]);
 
+  const breakdownAbilities = useMemo(() => {
+    if (!selectedPlayerStat) return [];
+    const healsMode = meterTab === "heals";
+    const filtered = selectedPlayerStat.abilities.filter((ability) =>
+      healsMode ? ability.healing > 0 : ability.damage > 0
+    );
+
+    // Roll every "Pet (Name): ability" into one row per pet.
+    const pets = new Map<
+      string,
+      { name: string; hits: number; damage: number; healing: number }
+    >();
+    const own: typeof filtered = [];
+
+    for (const ability of filtered) {
+      const match = /^Pet \((.+)\): /.exec(ability.name);
+      if (!match) {
+        own.push(ability);
+        continue;
+      }
+      const petName = match[1];
+      const key = petName.toLowerCase();
+      const existing = pets.get(key);
+      if (existing) {
+        existing.hits += ability.hits;
+        existing.damage += ability.damage;
+        existing.healing += ability.healing;
+      } else {
+        pets.set(key, {
+          name: `Pet (${petName})`,
+          hits: ability.hits,
+          damage: ability.damage,
+          healing: ability.healing,
+        });
+      }
+    }
+
+    const combined = [...own, ...pets.values()];
+    combined.sort((a, b) => {
+      const aAmount = healsMode ? a.healing : a.damage;
+      const bAmount = healsMode ? b.healing : b.damage;
+      return bAmount - aAmount;
+    });
+    return combined;
+  }, [selectedPlayerStat, meterTab]);
+
   const openLogPicker = useCallback(async () => {
     setError(null);
     setHint(null);
@@ -2537,11 +2583,7 @@ function App() {
                 )}
               </p>
               <div className="ability-list">
-                {selectedPlayerStat.abilities
-                  .filter((ability) =>
-                    isHealsTab ? ability.healing > 0 : ability.damage > 0
-                  )
-                      .map((ability) => {
+                {breakdownAbilities.map((ability) => {
                     const amount = isHealsTab
                       ? ability.healing
                       : ability.damage;
