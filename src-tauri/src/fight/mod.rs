@@ -1116,11 +1116,12 @@ impl FightTracker {
             };
         }
 
-        // "Francis's pet" / "Francis`s pet" / "Francis pet"
-        if let Some(owner) = owner_from_pet_label(&cleaned) {
+        // "Francis's pet" / "Kenkyo`s warder" / "Francis pet"
+        if let Some((owner, pet)) = owner_from_pet_label(&cleaned) {
+            self.note_pet(&cleaned, &owner);
             return ResolvedAttacker {
                 owner,
-                pet: Some("Pet".to_string()),
+                pet: Some(pet),
             };
         }
 
@@ -1191,7 +1192,7 @@ impl FightTracker {
 
     /// Hits that land on your pet (not another raid player / not you).
     fn should_treat_as_pet_hit(&self, attacker: &str, target: &str) -> bool {
-        if !looks_like_combatant_name(target) || self.is_other_raid_player(target) {
+        if self.is_other_raid_player(target) {
             return false;
         }
         if let Some(me) = &self.character {
@@ -1204,6 +1205,13 @@ impl FightTracker {
         }
         if self.is_owned_pet(target) {
             return true;
+        }
+        // "Kenkyo`s warder" / "Francis's pet" as the hit target.
+        if let Some((owner, _)) = owner_from_pet_label(target) {
+            return self.is_self_combatant(&owner);
+        }
+        if !looks_like_combatant_name(target) {
+            return false;
         }
         // Mob swinging while you're already fighting that mob — learn the pet name.
         // Do NOT claim random open-world hits on other players as your pet.
@@ -1370,28 +1378,57 @@ fn strip_your_prefix(label: &str) -> Option<&str> {
     None
 }
 
-fn owner_from_pet_label(label: &str) -> Option<String> {
+/// Parse "Kenkyo`s warder", "Francis's pet", "Bob's fire elemental", "Francis pet".
+/// Returns (owner_name, pet_display_name).
+fn owner_from_pet_label(label: &str) -> Option<(String, String)> {
     let lower = label.to_ascii_lowercase();
-    if let Some(owner) = lower.strip_suffix("'s pet") {
-        let owner = owner.trim();
-        if !owner.is_empty() {
-            return Some(title_case_preserve(label, owner.len()));
+
+    for sep in ["'s ", "`s "] {
+        if let Some(idx) = lower.find(sep) {
+            let owner_part = lower[..idx].trim();
+            let pet_part = lower[idx + sep.len()..].trim();
+            if owner_part.is_empty() || !is_owned_pet_phrase(pet_part) {
+                continue;
+            }
+            let owner = title_case_preserve(label, owner_part.len());
+            let pet = pet_display_name(pet_part);
+            return Some((owner, pet));
         }
     }
-    if let Some(owner) = lower.strip_suffix("`s pet") {
-        let owner = owner.trim();
-        if !owner.is_empty() {
-            return Some(title_case_preserve(label, owner.len()));
+
+    for suffix in [" pet", " warder", " familiar"] {
+        if let Some(owner_part) = lower.strip_suffix(suffix) {
+            let owner_part = owner_part.trim();
+            // Avoid "your pet" (handled earlier) or NPC phrases with spaces.
+            if owner_part.is_empty() || owner_part.contains(' ') {
+                continue;
+            }
+            let owner = title_case_preserve(label, owner_part.len());
+            let pet = pet_display_name(suffix.trim());
+            return Some((owner, pet));
         }
     }
-    if let Some(owner) = lower.strip_suffix(" pet") {
-        let owner = owner.trim();
-        // Avoid treating "your pet" here (handled earlier) or NPC phrases.
-        if !owner.is_empty() && !owner.contains(' ') {
-            return Some(title_case_preserve(label, owner.len()));
-        }
-    }
+
     None
+}
+
+fn is_owned_pet_phrase(rest: &str) -> bool {
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return false;
+    }
+    let lower = rest.to_ascii_lowercase();
+    if lower == "pet" || lower == "warder" || lower == "familiar" {
+        return true;
+    }
+    if lower.starts_with("pet ") {
+        return true;
+    }
+    // Mage pets: "fire elemental", "air elemental", …
+    if lower.ends_with(" elemental") {
+        return true;
+    }
+    false
 }
 
 fn title_case_preserve(original: &str, owner_len: usize) -> String {
@@ -2133,6 +2170,48 @@ mod tests {
             .iter()
             .any(|a| a.name == "Pet (Jebarer): slash" && a.damage == 50));
         assert!(!fight.players.iter().any(|p| p.name == "Jebarer"));
+    }
+
+    #[test]
+    fn bst_warder_possessive_merges_onto_owner() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        // Live EQL BST lines use backtick possessive: Kenkyo`s warder
+        if let Some(event) = crate::parse::parse_line(
+            "[Mon Jul 13 00:14:12 2026] Kenkyo`s warder claws a skeletal excavator for 19 points of damage.",
+        ) {
+            tracker.ingest(event);
+        }
+        if let Some(event) = crate::parse::parse_line(
+            "[Mon Jul 13 00:14:12 2026] Kenkyo`s warder cleaves a skeletal excavator for 38 points of damage.",
+        ) {
+            tracker.ingest(event);
+        }
+        // Pet can open the fight alone — must still count.
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert_eq!(fight.players.len(), 1);
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 57);
+        assert!(fight
+            .players[0]
+            .abilities
+            .iter()
+            .any(|a| a.name.starts_with("Pet (warder):") && a.damage > 0));
+        assert!(!fight.players.iter().any(|p| p.name.contains("warder")));
+
+        // Mob hitting the warder must not open a fight named after the pet.
+        if let Some(event) = crate::parse::parse_line(
+            "[Mon Jul 13 00:14:53 2026] A skeletal excavator pierces Kenkyo`s warder for 14 points of damage.",
+        ) {
+            tracker.ingest(event);
+        }
+        let snap = tracker.snapshot();
+        assert!(!snap
+            .active_fights
+            .iter()
+            .any(|f| f.target.to_ascii_lowercase().contains("warder")));
+        assert_eq!(snap.active_fights.len(), 1);
     }
 
     #[test]

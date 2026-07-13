@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.19] — 2026-07-13
+
+### Fixed
+
+- Beastlord warder DPS was dropped entirely: live logs use `Kenkyo\`s warder` (and similar), which was treated as an NPC instead of your pet. Possessive pet labels (`…'s` / `…\`s` warder, pet, familiar, elemental) now merge onto the owner in the overlay and meter.
+
+### Changed
+
+- Main window shows **Unlock Overlay** / **Lock Overlay** when the overlay is open, so you can move it again after locking (locked mode passes clicks through to the game, so the overlay itself can't be clicked).
+
 ## [0.1.18] — 2026-07-12
 
 ### Fixed
@@ -137,7 +147,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.18...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.19...HEAD
+[0.1.19]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.19
 [0.1.18]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.18
 [0.1.17]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.16

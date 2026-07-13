@@ -1245,6 +1245,11 @@ function App() {
       );
       setOverlayOpen(status.open);
       setOverlayClickThrough(status.click_through);
+      if (enabled) {
+        setToast("Overlay locked — Unlock Overlay here, or Ctrl/Cmd+Shift+U");
+      } else {
+        setToast("Overlay unlocked — drag to move, then Lock Overlay");
+      }
     } catch (err) {
       setError(String(err));
     }
@@ -1485,9 +1490,29 @@ function App() {
           >
             Copy Parse
           </button>
+          {overlayOpen && overlayClickThrough ? (
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => void setClickThrough(false)}
+              title="Make the overlay clickable so you can drag it (Ctrl/Cmd+Shift+U)"
+            >
+              Unlock Overlay
+            </button>
+          ) : null}
+          {overlayOpen && !overlayClickThrough ? (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void setClickThrough(true)}
+              title="Pass clicks through to the game (Ctrl/Cmd+Shift+L)"
+            >
+              Lock Overlay
+            </button>
+          ) : null}
           <button
             type="button"
-            className={`btn ${overlayOpen ? "primary" : ""}`}
+            className={`btn ${overlayOpen && !overlayClickThrough ? "primary" : ""}`}
             onClick={() => void toggleOverlay()}
           >
             {overlayOpen ? "Close Overlay" : "Overlay"}
