@@ -365,6 +365,11 @@ body,
   font-weight: 700;
 }
 
+.overlay-row.pet .overlay-name {
+  color: var(--teal);
+  font-weight: 600;
+}
+
 .overlay-num {
   text-align: right;
   font-variant-numeric: tabular-nums;

@@ -66,6 +66,21 @@ function cycleValue<T>(values: T[], current: T): T {
   return values[(index + 1) % values.length];
 }
 
+/** Sum damage per pet from "Pet (Name): ability" breakdown rows. */
+function petDamageByName(
+  abilities: { name: string; damage: number }[]
+): Map<string, number> {
+  const pets = new Map<string, number>();
+  for (const ability of abilities) {
+    const match = /^Pet \((.+)\): /.exec(ability.name);
+    if (!match) continue;
+    const petName = match[1];
+    const existing = pets.get(petName) ?? 0;
+    pets.set(petName, existing + ability.damage);
+  }
+  return pets;
+}
+
 export default function Overlay() {
   const [meter, setMeter] = useState<MeterState | null>(null);
   const [clickThrough, setClickThrough] = useState(false);
@@ -231,19 +246,59 @@ export default function Overlay() {
 
   const rows = useMemo(() => {
     if (!fight) return [];
-    const total = fight.total_damage;
-    return fight.players
-      .filter((p) => p.damage > 0)
-      .slice(0, prefs.maxRows)
-      .map((p) => ({
-      key: p.name,
-      label: p.name,
-      isSelf: character != null && p.name === character,
-      damage: p.damage,
-      dps: fight.active ? liveRate(p.damage, liveDuration) : p.dps,
-      secs: liveDuration,
-      pct: total > 0 ? (p.damage / total) * 100 : 0,
-    }));
+    const total = Math.max(fight.total_damage, 1);
+    const built: {
+      key: string;
+      label: string;
+      isSelf: boolean;
+      isPet: boolean;
+      damage: number;
+      dps: number;
+      secs: number;
+      pct: number;
+    }[] = [];
+
+    for (const player of fight.players) {
+      if (player.damage <= 0) continue;
+
+      const pets = petDamageByName(player.abilities);
+      let petTotal = 0;
+      for (const [petName, damage] of pets) {
+        if (damage <= 0) continue;
+        petTotal += damage;
+        built.push({
+          key: `${player.name}::${petName}`,
+          label: `${player.name}'s ${petName}`,
+          isSelf: character != null && player.name === character,
+          isPet: true,
+          damage,
+          dps: fight.active
+            ? liveRate(damage, liveDuration)
+            : damage / Math.max(liveDuration, 1),
+          secs: liveDuration,
+          pct: (damage / total) * 100,
+        });
+      }
+
+      const ownDamage = player.damage - petTotal;
+      if (ownDamage > 0) {
+        built.push({
+          key: player.name,
+          label: player.name,
+          isSelf: character != null && player.name === character,
+          isPet: false,
+          damage: ownDamage,
+          dps: fight.active
+            ? liveRate(ownDamage, liveDuration)
+            : ownDamage / Math.max(liveDuration, 1),
+          secs: liveDuration,
+          pct: (ownDamage / total) * 100,
+        });
+      }
+    }
+
+    built.sort((a, b) => b.damage - a.damage);
+    return built.slice(0, prefs.maxRows);
   }, [fight, character, liveDuration, prefs.maxRows]);
 
   const fightDps = fight
@@ -476,8 +531,8 @@ export default function Overlay() {
                   <div
                     key={row.key}
                     className={`overlay-row ${row.isSelf ? "self" : ""} ${
-                      index === 0 ? "top" : ""
-                    }`}
+                      row.isPet ? "pet" : ""
+                    } ${index === 0 ? "top" : ""}`}
                   >
                     <span className="overlay-name" title={row.label}>
                       {name}
