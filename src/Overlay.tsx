@@ -167,7 +167,7 @@ export default function Overlay() {
       setClickThrough(status.click_through);
       if (enabled) {
         setMenuOpen(false);
-        setToast("Locked — clicks go to the game");
+        setToast("Locked — Unlock Overlay in main, or Ctrl/Cmd+Shift+U");
       } else {
         setToast("Setup — drag to move, then Lock");
       }
@@ -256,13 +256,13 @@ export default function Overlay() {
   const fightBarH = fight ? 22 : 0;
   const rowH = Math.max(22, prefs.fontSize + 10);
   const toastH = 22;
-  const setupBannerH = setupMode ? BANNER_H : 0;
+  const bannerH = BANNER_H;
   const bodyRows = fight ? Math.max(rows.length, 1) : 1;
 
   useEffect(() => {
     const h =
       headerH +
-      setupBannerH +
+      bannerH +
       fightBarH +
       (menuOpen && setupMode ? MENU_H : 0) +
       (toast ? toastH : 0) +
@@ -278,7 +278,7 @@ export default function Overlay() {
     fightBarH,
     rowH,
     toastH,
-    setupBannerH,
+    bannerH,
     menuOpen,
     setupMode,
   ]);
@@ -371,7 +371,12 @@ export default function Overlay() {
             </button>
           </div>
         ) : (
-          <span className="overlay-live-label">LIVE</span>
+          <span
+            className="overlay-live-label"
+            title="Unlock from the main window (Unlock Overlay) or Ctrl/Cmd+Shift+U"
+          >
+            LIVE
+          </span>
         )}
 
         <div className="overlay-drag" title="Drag overlay" />
@@ -388,7 +393,11 @@ export default function Overlay() {
         <p className="overlay-banner setup">
           Setup — drag anywhere, then Lock for game
         </p>
-      ) : null}
+      ) : (
+        <p className="overlay-banner locked">
+          Locked — Unlock Overlay in main window, or Ctrl/Cmd+Shift+U
+        </p>
+      )}
 
       {menuOpen && setupMode ? (
         <div className="overlay-menu" ref={menuRef}>
@@ -447,7 +456,7 @@ export default function Overlay() {
           </button>
 
           <p className="overlay-menu-hint">
-            Unlock later: Ctrl/Cmd+Shift+U · or Close Overlay in main
+            Unlock later: Unlock Overlay in main · or Ctrl/Cmd+Shift+U
           </p>
         </div>
       ) : null}

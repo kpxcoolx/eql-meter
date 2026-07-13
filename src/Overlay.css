@@ -188,6 +188,11 @@ body,
   color: var(--amber-hot);
 }
 
+.overlay-banner.locked {
+  background: rgba(111, 158, 140, 0.2);
+  color: var(--teal);
+}
+
 .overlay-icon {
   border: 0;
   background: transparent;
