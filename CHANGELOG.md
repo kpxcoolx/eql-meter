@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.18] — 2026-07-12
+
+### Fixed
+
+- Overlay phantoms: `itself` and `Name over time` no longer appear as separate combatants (HoT / self-heal labels).
+- Named pets that hit before they were recognized are folded back into the owner (no more separate pet DPS rows once the pet is learned).
+
+### Changed
+
+- Breakdown rolls pet abilities into one row per pet (`Pet (Pickle)`, …) instead of listing every pet ability separately.
+
 ## [0.1.17] — 2026-07-12
 
 ### Fixed
@@ -126,7 +137,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.17...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.18...HEAD
+[0.1.18]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.18
 [0.1.17]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.16
 [0.1.10]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.10

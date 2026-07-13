@@ -470,8 +470,12 @@ fn create_overlay_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String
             .skip_taskbar(true)
             .focused(false)
             // Start hidden; show after create so Windows does not flash a dead surface.
-            .visible(false)
-            .drag_and_drop(false);
+            .visible(false);
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.drag_and_drop(false);
+    }
 
     #[cfg(target_os = "windows")]
     {

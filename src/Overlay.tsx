@@ -232,7 +232,10 @@ export default function Overlay() {
   const rows = useMemo(() => {
     if (!fight) return [];
     const total = fight.total_damage;
-    return fight.players.slice(0, prefs.maxRows).map((p) => ({
+    return fight.players
+      .filter((p) => p.damage > 0)
+      .slice(0, prefs.maxRows)
+      .map((p) => ({
       key: p.name,
       label: p.name,
       isSelf: character != null && p.name === character,
