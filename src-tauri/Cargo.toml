@@ -1,6 +1,6 @@
 [package]
 name = "eql-meter"
-version = "0.1.22"
+version = "0.1.23"
 description = "Real-time combat meter for EverQuest Legends"
 authors = ["EQ Legends"]
 license = "MIT"
@@ -33,6 +33,7 @@ chrono = { version = "0.4.45", features = ["clock"] }
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
