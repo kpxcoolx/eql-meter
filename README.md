@@ -19,6 +19,16 @@ Live combat meter for **EverQuest Legends** — tails your character log, tracks
 > **Players:** download the installer. You do not need Node, Rust, or Git.  
 > Releases ship a **Windows** `.exe` and a **macOS** `.dmg`.
 
+### Mac Gatekeeper
+
+The Mac app is not notarized by Apple yet. After dragging **EQL Meter** to Applications, the first open may say it’s damaged or can’t be opened. Clear quarantine once in Terminal, then open normally:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/EQL Meter.app"
+```
+
+Full steps: [Mac guide](docs/mac.md).
+
 ---
 
 ## What you get
