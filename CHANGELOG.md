@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.24] — 2026-07-16
+
+### Fixed
+
+- Windows taskbar / window icon now uses the bars + sword mark (replaced the leftover Vite favicon and force-set the native window icon).
+
 ## [0.1.23] — 2026-07-16
 
 ### Fixed
@@ -171,7 +177,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.23...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.24...HEAD
+[0.1.24]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.24
 [0.1.23]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.23
 [0.1.22]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.22
 [0.1.21]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.21

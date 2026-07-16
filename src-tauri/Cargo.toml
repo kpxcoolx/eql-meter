@@ -1,6 +1,6 @@
 [package]
 name = "eql-meter"
-version = "0.1.23"
+version = "0.1.24"
 description = "Real-time combat meter for EverQuest Legends"
 authors = ["EQ Legends"]
 license = "MIT"
@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "image-png"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

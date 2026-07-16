@@ -27,6 +27,14 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
+fn apply_app_icon(window: &WebviewWindow) {
+    // Force the Windows title bar / taskbar icon (WebView favicon alone is unreliable).
+    const ICON_PNG: &[u8] = include_bytes!("../icons/128x128.png");
+    if let Ok(icon) = tauri::image::Image::from_bytes(ICON_PNG) {
+        let _ = window.set_icon(icon);
+    }
+}
+
 fn focus_existing_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -512,6 +520,7 @@ fn create_overlay_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String
         .inner_size(safe.width.max(300.0), safe.height.max(100.0));
 
     let window = builder.build().map_err(|e| e.to_string())?;
+    apply_app_icon(&window);
 
     #[cfg(target_os = "windows")]
     let _ = window.set_background_color(Some(tauri::window::Color(18, 16, 14, 255)));
@@ -853,6 +862,10 @@ pub fn run() {
                 if let Some(main) = app.get_webview_window("main") {
                     apply_window_geometry(&main, geo);
                 }
+            }
+
+            if let Some(main) = app.get_webview_window("main") {
+                apply_app_icon(&main);
             }
 
             // Overlay lock/unlock. Must not abort startup if another app

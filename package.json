@@ -1,7 +1,7 @@
 {
   "name": "eql-meter",
   "private": true,
-  "version": "0.1.23",
+  "version": "0.1.24",
   "license": "MIT",
   "type": "module",
   "scripts": {
