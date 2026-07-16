@@ -953,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "eql-meter"
-version = "0.1.21"
+version = "0.1.22"
 dependencies = [
  "chrono",
  "notify",
