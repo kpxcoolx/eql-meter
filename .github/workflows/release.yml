@@ -96,6 +96,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           set -euo pipefail
