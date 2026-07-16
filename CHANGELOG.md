@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.22] — 2026-07-16
+
+### Changed
+
+- App icon is now the bars + sword mark (matches eqlmeter.com).
+
 ## [0.1.21] — 2026-07-16
 
 ### Fixed
@@ -159,7 +165,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.21...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.22...HEAD
+[0.1.22]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.22
 [0.1.21]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.21
 [0.1.20]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.20
 [0.1.19]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.19
