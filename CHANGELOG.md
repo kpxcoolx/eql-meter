@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.21] — 2026-07-16
+
+### Fixed
+
+- Opening EQL Meter and EQL Alerts together no longer makes the second app flash and exit. Global overlay hotkey registration is non-fatal if another app already owns the keys.
+
 ## [0.1.20] — 2026-07-13
 
 ### Changed
@@ -153,7 +159,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.20...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.21...HEAD
+[0.1.21]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.21
 [0.1.20]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.20
 [0.1.19]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.19
 [0.1.18]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.18

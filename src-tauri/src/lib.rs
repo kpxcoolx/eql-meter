@@ -843,17 +843,25 @@ pub fn run() {
                 }
             }
 
+            // Overlay lock/unlock. Must not abort startup if another app
+            // (e.g. EQL Alerts) already owns the same OS hotkey.
             #[cfg(target_os = "macos")]
             let mods = Modifiers::SUPER | Modifiers::SHIFT;
             #[cfg(not(target_os = "macos"))]
             let mods = Modifiers::CONTROL | Modifiers::SHIFT;
 
-            app.global_shortcut()
+            if let Err(err) = app
+                .global_shortcut()
                 .register(Shortcut::new(Some(mods), Code::KeyU))
-                .map_err(|e| e.to_string())?;
-            app.global_shortcut()
+            {
+                eprintln!("hotkey Ctrl/Cmd+Shift+U unavailable: {err}");
+            }
+            if let Err(err) = app
+                .global_shortcut()
                 .register(Shortcut::new(Some(mods), Code::KeyL))
-                .map_err(|e| e.to_string())?;
+            {
+                eprintln!("hotkey Ctrl/Cmd+Shift+L unavailable: {err}");
+            }
 
             // Create overlay on the main thread at startup (hidden). Creating it later
             // from a sync IPC command blanks WebView2 on Windows.
