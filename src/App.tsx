@@ -1110,11 +1110,22 @@ function App() {
     setHint(null);
     setBusy(true);
     try {
-      const found = await invoke<{ path: string; character: string | null }>(
-        "auto_detect_log"
-      );
+      const found = await invoke<{
+        path: string;
+        character: string | null;
+        source: string;
+      }>("auto_detect_log");
       await startPath(found.path, false);
-      setToast("Monitoring log");
+      let label = "Monitoring log";
+      if (found.source === "osxeql") {
+        label = "Monitoring osxEQL log";
+      } else if (found.source === "parallels") {
+        label = "Monitoring Parallels log";
+      }
+      if (found.character) {
+        label = `${label} · ${found.character}`;
+      }
+      setToast(label);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -1457,26 +1468,19 @@ function App() {
         </div>
 
         <div className="actions">
-          {isMac ? (
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy}
-              onClick={autoDetectParallels}
-              title="Monitor the live eqlog from your Parallels Windows VM"
-            >
-              Live Parallels
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy}
-              onClick={() => void autoDetect()}
-            >
-              Auto-detect
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn primary"
+            disabled={busy}
+            onClick={() => void autoDetect()}
+            title={
+              isMac
+                ? "Find eqlog from osxEQL (Wine) or a Parallels Windows volume"
+                : "Find your EverQuest Legends character log"
+            }
+          >
+            Auto-detect
+          </button>
           <button
             type="button"
             className="btn"
@@ -1534,6 +1538,25 @@ function App() {
 
             {menuOpen ? (
               <div className="menu-panel" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runMenuAction(() => void autoDetect())}
+                >
+                  Auto-detect log
+                </button>
+                {isMac ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() =>
+                      runMenuAction(() => void autoDetectParallels())
+                    }
+                    title="Only search Parallels /Volumes Windows mounts"
+                  >
+                    Live Parallels log
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
@@ -2519,29 +2542,18 @@ function App() {
               <p className="brand-large">EQL Meter</p>
               <p>
                 {isMac
-                  ? "Keep your Parallels Windows VM running so its C: drive is mounted, then click Live Parallels to follow eqlog_*.txt under EverQuest Legends\\Logs in real time."
+                  ? "Click Auto-detect to find your character log from osxEQL (Wine) or a Parallels Windows volume. Combat updates live while you play."
                   : "Click Auto-detect to find your character log under EverQuest Legends\\Logs, or choose the file manually. Combat updates live while you play."}
               </p>
               <div className="hero-actions">
-                {isMac ? (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={autoDetectParallels}
-                  >
-                    Live Parallels Log
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={autoDetect}
-                  >
-                    Auto-detect Log
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy}
+                  onClick={() => void autoDetect()}
+                >
+                  Auto-detect Log
+                </button>
                 <button
                   type="button"
                   className="btn"

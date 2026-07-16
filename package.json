@@ -1,7 +1,7 @@
 {
   "name": "eql-meter",
   "private": true,
-  "version": "0.1.24",
+  "version": "0.1.25",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "tauri:build:windows": "tauri build --bundles nsis"
+    "tauri:build:windows": "tauri build --bundles nsis",
+    "tauri:build:mac": "tauri build --bundles dmg,app --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

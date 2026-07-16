@@ -110,10 +110,10 @@ The updater reads `latest.json` from the **Latest** GitHub release. CI only publ
 
 ---
 
-## Mac / Parallels?
+## Mac?
 
-EQ in a VM, meter on the Mac host → [Mac + Parallels](mac-parallels.md)  
-(There is **no** Mac `.dmg`.)
+- EQ via **osxEQL** (Wine) → [Mac guide](mac.md) (`.dmg`)
+- EQ in a **Parallels** VM → [Mac + Parallels](mac-parallels.md)
 
 ---
 

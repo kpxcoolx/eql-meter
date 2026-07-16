@@ -144,7 +144,7 @@ fn find_logs() -> Vec<FoundLog> {
 fn auto_detect_log() -> Result<FoundLog, String> {
     best_log().ok_or_else(|| {
         if cfg!(target_os = "macos") {
-            "No eqlog_*.txt found. On Mac with Parallels, keep the Windows VM running so C: is mounted under /Volumes, or use Menu → Monitor → Choose log…".to_string()
+            "No eqlog_*.txt found. For osxEQL, enable logging in EQ and check ~/Library/Application Support/osxEQL/.../EverQuest Legends/Logs. For Parallels, keep the Windows VM running so C: is under /Volumes. Or use Menu → Choose log…".to_string()
         } else {
             "No eqlog_*.txt found. Check EverQuest Legends\\Logs, or use Menu → Monitor → Choose log…".to_string()
         }

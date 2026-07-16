@@ -1,4 +1,4 @@
-name: windows-build
+name: release
 
 on:
   workflow_dispatch:
@@ -15,12 +15,11 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Resolve version tag
         id: ver
         shell: bash
@@ -30,6 +29,21 @@ jobs:
           else
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
+
+  build:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: --bundles nsis
+          - platform: macos-latest
+            args: --bundles dmg,app
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -44,37 +58,45 @@ jobs:
         run: npm ci
 
       # Always create a DRAFT first. Publishing happens only after we verify
-      # the NSIS installer + latest.json exist — never leave a broken "Latest".
-      - name: Build Windows installer (draft release)
+      # Windows + macOS installers and latest.json exist — never leave a broken "Latest".
+      - name: Build installer (draft release)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ steps.ver.outputs.tag }}
-          releaseName: EQL Meter ${{ steps.ver.outputs.tag }}
+          tagName: ${{ needs.resolve.outputs.tag }}
+          releaseName: EQL Meter ${{ needs.resolve.outputs.tag }}
           releaseBody: |
-            Windows installer for EQL Meter.
+            Installers for EQL Meter (Windows + macOS).
 
-            1. Run the NSIS `.exe` (current-user install; no admin required).
-            2. Start EQL Meter → **Auto-detect** / **Choose log…**.
+            **Windows:** run the NSIS `.exe` (current-user install; no admin required).
+            **Mac:** open the `.dmg`, drag EQL Meter to Applications. If Gatekeeper blocks the first open:
+            `xattr -dr com.apple.quarantine "/Applications/EQL Meter.app"`
+
+            1. Start EQL Meter → **Auto-detect** / **Choose log…**
+            2. On Mac with osxEQL, Auto-detect finds the Wine log under Application Support.
             3. Open **Overlay** and enable click-through.
 
             After this build, use **Menu → Check for updates** for future releases.
 
-            Full guide: docs/windows.md
+            Guides: docs/windows.md · docs/mac.md · docs/mac-parallels.md
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
-          args: --bundles nsis
+          args: ${{ matrix.args }}
 
+  publish:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
       - name: Publish only if updater assets are complete
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.ver.outputs.tag }}
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           set -euo pipefail
           echo "Checking assets on $TAG…"
@@ -82,8 +104,9 @@ jobs:
           echo "$assets"
           echo "$assets" | grep -E 'setup\.exe$' >/dev/null
           echo "$assets" | grep -E 'setup\.exe\.sig$' >/dev/null
+          echo "$assets" | grep -E '\.dmg$' >/dev/null
           echo "$assets" | grep -x 'latest.json' >/dev/null
           gh release edit "$TAG" --draft=false
           echo "Published $TAG"
           curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/latest.json" \
-            | python -c "import sys,json; d=json.load(sys.stdin); print('updater feed version:', d.get('version'))"
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('updater feed version:', d.get('version'))"

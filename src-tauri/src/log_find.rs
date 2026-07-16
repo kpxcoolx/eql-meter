@@ -34,6 +34,11 @@ pub fn candidate_log_dirs() -> Vec<(PathBuf, &'static str)> {
         "windows",
     ));
 
+    // Native Mac: osxEQL Wine prefix (Apple Silicon, no VM)
+    for wine_logs in osxeql_log_dirs() {
+        dirs.push((wine_logs, "osxeql"));
+    }
+
     // Any mounted Windows volume from Parallels / VMware / etc.
     for volume_logs in parallels_log_dirs() {
         dirs.push((volume_logs, "parallels"));
@@ -54,6 +59,22 @@ pub fn candidate_log_dirs() -> Vec<(PathBuf, &'static str)> {
         }
     }
 
+    dirs
+}
+
+/// EverQuest Legends Logs folder inside the osxEQL Wine prefix.
+pub fn osxeql_log_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return dirs;
+    };
+    dirs.push(
+        home.join("Library/Application Support/osxEQL/prefix/drive_c/users/Public")
+            .join("Daybreak Game Company")
+            .join("Installed Games")
+            .join("EverQuest Legends")
+            .join("Logs"),
+    );
     dirs
 }
 
@@ -108,9 +129,10 @@ pub fn find_eq_logs() -> Vec<FoundLog> {
 
     found.sort_by(|a, b| {
         let source_rank = |s: &str| match s {
-            "parallels" | "windows" => 0,
-            "local" => 1,
-            _ => 2,
+            "osxeql" => 0,
+            "parallels" | "windows" => 1,
+            "local" => 2,
+            _ => 3,
         };
         source_rank(&a.source)
             .cmp(&source_rank(&b.source))
@@ -172,6 +194,19 @@ mod tests {
         assert!(
             found.iter().any(|f| f.path.contains("eqlog_Kenkyo_freeport")),
             "expected Kenkyo sample in find results: {found:?}"
+        );
+    }
+
+    #[test]
+    fn osxeql_log_dir_uses_application_support_prefix() {
+        let dirs = osxeql_log_dirs();
+        assert!(
+            dirs.iter().any(|d| {
+                d.to_string_lossy()
+                    .contains("Library/Application Support/osxEQL/prefix/drive_c")
+                    && d.ends_with("EverQuest Legends/Logs")
+            }),
+            "expected osxEQL Wine Logs path: {dirs:?}"
         );
     }
 }

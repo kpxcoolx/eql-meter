@@ -13,10 +13,11 @@ Live combat meter for **EverQuest Legends** — tails your character log, tracks
 | I am… | Do this |
 |-------|---------|
 | Playing on **Windows** | Install the `.exe` → [Windows guide](docs/windows.md) |
-| On **Mac + Parallels** | No Mac installer — run from source → [Mac guide](docs/mac-parallels.md) |
+| On **Mac + osxEQL** | Install the `.dmg` → [Mac guide](docs/mac.md) |
+| On **Mac + Parallels** | Same `.dmg`, attach to the VM log → [Parallels guide](docs/mac-parallels.md) |
 
 > **Players:** download the installer. You do not need Node, Rust, or Git.  
-> Releases ship **Windows only** — there is no macOS `.dmg`.
+> Releases ship a **Windows** `.exe` and a **macOS** `.dmg`.
 
 ---
 
@@ -64,10 +65,10 @@ npm run tauri:dev
 
 | Platform | Notes |
 |----------|--------|
-| macOS | No packaged app — [Mac + Parallels](docs/mac-parallels.md) |
+| macOS | [Mac + osxEQL](docs/mac.md) · [Mac + Parallels](docs/mac-parallels.md) |
 | Windows | [Windows guide](docs/windows.md) · find the Legends log |
 
-### Ship a Windows installer
+### Ship an installer
 
 Do not ask players to build. Do **not** create a GitHub Release by hand before CI finishes — empty releases break **Check for updates**.
 
@@ -78,16 +79,18 @@ Do not ask players to build. Do **not** create a GitHub Release by hand before C
 git tag v0.1.14 && git push origin v0.1.14
 ```
 
-CI builds a **draft** with the NSIS `.exe`, `.sig`, and `latest.json`, then **publishes only if those assets exist**. Until then, `/releases/latest` still points at the previous good build.
+CI builds a **draft** with the Windows NSIS `.exe`, macOS `.dmg`, and updater assets, then **publishes only if those assets exist**. Until then, `/releases/latest` still points at the previous good build.
 
-Or: **Actions → windows-build → Run workflow** with the tag. Requires `TAURI_SIGNING_PRIVATE_KEY` (and optional password).
+Or: **Actions → release → Run workflow** with the tag. Requires `TAURI_SIGNING_PRIVATE_KEY` (and optional password).
 
-Local NSIS (on Windows):
+Local builds:
 
 ```bash
-npm run tauri:build:windows
-```
+# Windows (on Windows)
+npm run tauri:build:windows   # → src-tauri/target/release/bundle/nsis/
 
-Output: `src-tauri/target/release/bundle/nsis/`
+# macOS (Apple Silicon)
+npm run tauri:build:mac       # → src-tauri/target/release/bundle/dmg/
+```
 
 Parser fixtures for offline tests: [`samples/`](samples/).

@@ -2,9 +2,20 @@
 
 All notable changes to EQL Meter are documented here.
 
-Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows the GitHub release tags (`v0.1.x`). Releases currently ship a **Windows** NSIS installer only; there is no macOS `.dmg`.
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows the GitHub release tags (`v0.1.x`). Releases ship a **Windows** NSIS installer and a **macOS** `.dmg`.
 
 ## [Unreleased]
+
+## [0.1.25] — 2026-07-15
+
+### Added
+
+- macOS `.dmg` packaging for native Apple Silicon installs.
+- Auto-detect finds EverQuest Legends logs in the osxEQL Wine prefix (`~/Library/Application Support/osxEQL/.../Logs`).
+
+### Changed
+
+- Mac empty state and primary action use **Auto-detect** (osxEQL first, then Parallels). **Live Parallels log** remains under Menu for VM players.
 
 ## [0.1.24] — 2026-07-16
 
