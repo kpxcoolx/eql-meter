@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.26] — 2026-07-30
+
 ### Fixed
 
 - Group mode no longer treats other party members as your pets when a mob hits them (named pets are still learned from `Your …` / possessive labels like `Kenkyo\`s warder`).
