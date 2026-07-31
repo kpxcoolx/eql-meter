@@ -57,8 +57,40 @@ static POSSESSIVE_SPELL_RE: Lazy<Regex> = Lazy::new(|| {
     .expect("possessive spell regex")
 });
 
+// Damage shield:
+// "a goblin is pierced by YOUR thorns for 40 points of non-melee damage."
+// "Tantor is burned by Tolzol's flames for 100 points of non-melee damage."
+// "YOU are pierced by a vampire bat's thorns for 14 points of non-melee damage!"
+static DAMAGE_SHIELD_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)^(?P<victim>.+?) (?:is|are) (?:pierced|burned|tormented|chilled|frozen|engulfed|blasted|hit) by (?:YOUR|(?P<owner>.+?)(?:'s|`s|’)) (?P<style>\w+) for (?P<amount>\d+) points? of non-melee damage!?\.?(?:\s*\((?P<mods>.+)\))?$",
+    )
+    .expect("damage shield regex")
+});
+
 pub fn parse_damage_line(data: &LineData) -> Option<DamageEvent> {
     let action = data.action.as_str();
+
+    // DS before melee/spell — "is pierced by" must not be treated as a melee pierce.
+    if let Some(caps) = DAMAGE_SHIELD_RE.captures(action) {
+        let owner = caps
+            .name("owner")
+            .map(|m| m.as_str().trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "You".to_string());
+        let style = caps["style"].to_string();
+        return outgoing_or_none(DamageEvent {
+            timestamp: data.timestamp.clone(),
+            time_secs: data.time_secs,
+            incoming: false,
+            attacker: owner,
+            target: caps["victim"].to_string(),
+            amount: caps["amount"].parse().ok()?,
+            hit_type: "ds".to_string(),
+            spell: Some(format!("Damage Shield ({style})")),
+            modifiers: split_mods(caps.name("mods").map(|m| m.as_str())),
+        });
+    }
 
     if let Some(caps) = FRENZY_ON_RE.captures(action) {
         return outgoing_or_none(DamageEvent {
@@ -205,5 +237,55 @@ fn split_mods(raw: Option<&str>) -> Vec<String> {
             .filter(|s| !s.is_empty())
             .collect(),
         None => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parse::split_log_line;
+
+    fn parse(action: &str) -> crate::parse::DamageEvent {
+        let line = format!("[Mon Jul 13 00:14:20 2026] {action}");
+        let data = split_log_line(&line).expect("split");
+        parse_damage_line(&data).expect("damage")
+    }
+
+    #[test]
+    fn parses_your_damage_shield() {
+        let d = parse("a rock golem is pierced by YOUR thorns for 24 points of non-melee damage.");
+        assert_eq!(d.attacker, "You");
+        assert_eq!(d.target, "a rock golem");
+        assert_eq!(d.amount, 24);
+        assert_eq!(d.hit_type, "ds");
+        assert_eq!(d.spell.as_deref(), Some("Damage Shield (thorns)"));
+        assert!(!d.incoming);
+    }
+
+    #[test]
+    fn parses_other_player_damage_shield() {
+        let d = parse("a rock golem is burned by Bogmal's flames for 18 points of non-melee damage.");
+        assert_eq!(d.attacker, "Bogmal");
+        assert_eq!(d.amount, 18);
+        assert_eq!(d.hit_type, "ds");
+        assert_eq!(d.spell.as_deref(), Some("Damage Shield (flames)"));
+    }
+
+    #[test]
+    fn parses_incoming_damage_shield() {
+        let d = parse("YOU are pierced by a vampire bat's thorns for 14 points of non-melee damage!");
+        assert_eq!(d.attacker, "a vampire bat");
+        assert_eq!(d.target, "YOU");
+        assert_eq!(d.amount, 14);
+        assert!(d.incoming);
+        assert_eq!(d.hit_type, "ds");
+    }
+
+    #[test]
+    fn parses_backtick_possessive_damage_shield() {
+        let d = parse("a skeletal excavator is tormented by Kenkyo`s frost for 9 points of non-melee damage.");
+        assert_eq!(d.attacker, "Kenkyo");
+        assert_eq!(d.hit_type, "ds");
+        assert_eq!(d.spell.as_deref(), Some("Damage Shield (frost)"));
     }
 }

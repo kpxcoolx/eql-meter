@@ -737,8 +737,9 @@ impl FightTracker {
             return;
         }
 
-        // Pets are learned from "Your …" lines and from mobs hitting a known pet
-        // (or hitting a pet-like name while you are already fighting that mob).
+        // Pets are learned from "Your …" / possessive labels, and (self-only)
+        // from mobs hitting a known pet or an unknown single-token name while
+        // you are already fighting that mob.
 
         let resolved = self.resolve_attacker(&dmg.attacker);
         let attacker = resolved.owner;
@@ -1213,8 +1214,14 @@ impl FightTracker {
         if !looks_like_combatant_name(target) {
             return false;
         }
-        // Mob swinging while you're already fighting that mob — learn the pet name.
-        // Do NOT claim random open-world hits on other players as your pet.
+        // Group mode: never auto-claim single-token names as your pet. Party
+        // members look identical to named pets ("Galactic hits…") in the log.
+        // Pets are still learned from "Your …" and possessive labels.
+        if !self.self_only {
+            return false;
+        }
+        // Self-only: mob swinging while you're already fighting that mob —
+        // learn the pet name. Do NOT claim open-world hits as your pet.
         looks_like_npc(attacker) && self.active.contains_key(&fight_key(attacker))
     }
 }
@@ -1696,6 +1703,9 @@ fn damage_category(dmg: &DamageEvent) -> String {
     if dmg.hit_type == "dot" {
         return "DoT".to_string();
     }
+    if dmg.hit_type == "ds" {
+        return "Damage Shield".to_string();
+    }
     if dmg.spell.is_some() {
         return "Spell".to_string();
     }
@@ -1950,6 +1960,9 @@ mod tests {
     fn named_pet_merges_and_does_not_become_a_fight() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
+        // Named-pet learning from mob hits is self-only only (group mode
+        // would otherwise claim party members as pets).
+        tracker.set_self_only(true);
 
         // You open the fight, then the mob hits the pet so we learn the pet name.
         tracker.ingest(hit(100.0, "a Knight of Innoruuk", 100));
@@ -1999,6 +2012,7 @@ mod tests {
     fn named_mob_hitting_pet_does_not_list_pet_as_fight() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
+        tracker.set_self_only(true);
 
         // Engage first so pet hits from this mob can be learned.
         tracker.ingest(hit(100.0, "Innoruuk's Chosen", 100));
@@ -2128,6 +2142,7 @@ mod tests {
     fn pet_damage_before_learn_is_folded_into_owner() {
         let mut tracker = FightTracker::default();
         tracker.set_character(Some("Kenkyo".into()));
+        tracker.set_self_only(true);
 
         // You open the fight, then the pet swings before we learn its name.
         tracker.ingest(hit(100.0, "Overseer of Agony", 100));
@@ -2143,11 +2158,12 @@ mod tests {
             modifiers: Vec::new(),
         }));
 
-        // Still a separate row until the mob hits the pet (or Your … line).
+        // Self-only ignores other names until learned as a pet.
         let mid = tracker.snapshot().active_fight.expect("fight");
-        assert!(mid.players.iter().any(|p| p.name == "Jebarer"));
+        assert!(!mid.players.iter().any(|p| p.name == "Jebarer"));
+        assert_eq!(mid.players[0].damage, 100);
 
-        // Mob hits the pet → learn + retro-merge prior damage onto Kenkyo.
+        // Mob hits the pet → learn + later pet swings merge onto Kenkyo.
         tracker.ingest(CombatEvent::Damage(DamageEvent {
             timestamp: String::new(),
             time_secs: Some(100.4),
@@ -2156,6 +2172,17 @@ mod tests {
             target: "Jebarer".into(),
             amount: 8,
             hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.5),
+            incoming: false,
+            attacker: "Jebarer".into(),
+            target: "Overseer of Agony".into(),
+            amount: 50,
+            hit_type: "slash".into(),
             spell: None,
             modifiers: Vec::new(),
         }));
@@ -2170,6 +2197,96 @@ mod tests {
             .iter()
             .any(|a| a.name == "Pet (Jebarer): slash" && a.damage == 50));
         assert!(!fight.players.iter().any(|p| p.name == "Jebarer"));
+    }
+
+    #[test]
+    fn group_mode_does_not_claim_party_members_as_pets() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Balthez".into()));
+        assert!(!tracker.snapshot().self_only);
+
+        tracker.ingest(hit(100.0, "a rock golem", 100));
+        // Party member DPS
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Galactic".into(),
+            target: "a rock golem".into(),
+            amount: 200,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        // Mob hits the party member — must NOT fold them into Balthez as a pet.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "a rock golem".into(),
+            target: "Galactic".into(),
+            amount: 15,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(
+            fight.players.iter().any(|p| p.name == "Galactic"),
+            "party member must stay as their own row"
+        );
+        assert!(!fight.players.iter().any(|p| {
+            p.name == "Balthez"
+                && p.abilities
+                    .iter()
+                    .any(|a| a.name.starts_with("Pet (Galactic)"))
+        }));
+        let galactic = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Galactic")
+            .expect("galactic");
+        assert_eq!(galactic.damage, 200);
+    }
+
+    #[test]
+    fn damage_shield_counts_on_owner() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "a rock golem", 50));
+        if let Some(event) = crate::parse::parse_line(
+            "[Mon Jul 13 00:14:20 2026] a rock golem is pierced by YOUR thorns for 24 points of non-melee damage.",
+        ) {
+            tracker.ingest(event);
+        }
+        if let Some(event) = crate::parse::parse_line(
+            "[Mon Jul 13 00:14:21 2026] a rock golem is burned by Bogmal's flames for 18 points of non-melee damage.",
+        ) {
+            tracker.ingest(event);
+        }
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(fight
+            .damage_types
+            .iter()
+            .any(|t| t.name == "Damage Shield" && t.damage == 42));
+        let kenkyo = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Kenkyo")
+            .expect("kenkyo");
+        assert!(kenkyo
+            .abilities
+            .iter()
+            .any(|a| a.name.starts_with("Damage Shield") && a.damage == 24));
+        let bogmal = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Bogmal")
+            .expect("bogmal");
+        assert_eq!(bogmal.damage, 18);
     }
 
     #[test]

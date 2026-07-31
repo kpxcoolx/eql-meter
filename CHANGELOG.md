@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+### Fixed
+
+- Group mode no longer treats other party members as your pets when a mob hits them (named pets are still learned from `Your …` / possessive labels like `Kenkyo\`s warder`).
+- Damage shield lines (`pierced by YOUR thorns`, `burned by Name's flames`, …) now count as DPS under a **Damage Shield** category.
+
 ## [0.1.25] — 2026-07-15
 
 ### Added
