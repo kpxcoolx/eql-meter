@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub use avoid::{parse_avoid_line, parse_resist_line};
 pub use damage::parse_damage_line;
 pub use heal::parse_heal_line;
-pub use misc::{parse_misc_line, MiscEvent};
+pub use misc::{parse_misc_line, MiscEvent, MiscKind};
 pub use stance::{detect_stance_from_text, parse_stance_line, StanceEvent};
 pub use who::{parse_raid_count_line, parse_who_line, RaidCountEvent, WhoPlayerEvent};
 

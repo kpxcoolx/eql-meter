@@ -1,5 +1,5 @@
 use crate::parse::{
-    AvoidEvent, CombatEvent, DamageEvent, DeathEvent, HealEvent, MiscEvent, ResistEvent,
+    AvoidEvent, CombatEvent, DamageEvent, DeathEvent, HealEvent, MiscEvent, MiscKind, ResistEvent,
     WhoPlayerEvent,
 };
 use serde::{Deserialize, Serialize};
@@ -737,9 +737,10 @@ impl FightTracker {
             return;
         }
 
-        // Pets are learned from "Your …" / possessive labels, and (self-only)
-        // from mobs hitting a known pet or an unknown single-token name while
-        // you are already fighting that mob.
+        // Pets are learned from "Your …" / possessive labels, pet engage tells
+        // ("Garn told you, 'Attacking … Master.'"), and (self-only) from mobs
+        // hitting a known pet or an unknown single-token name while you are
+        // already fighting that mob.
 
         let resolved = self.resolve_attacker(&dmg.attacker);
         let attacker = resolved.owner;
@@ -971,6 +972,16 @@ impl FightTracker {
     }
 
     fn on_misc(&mut self, misc: MiscEvent) {
+        // Named pets confirm attack orders to their owner only:
+        // "Garn told you, 'Attacking Lord Nagafen Master.'"
+        if misc.kind == MiscKind::PetEngage {
+            if let Some(pet) = misc.who.as_deref() {
+                if let Some(owner) = self.character.clone() {
+                    self.note_pet(pet, &owner);
+                }
+            }
+            return;
+        }
         self.misc_log.push(misc);
         if self.misc_log.len() > 200 {
             let overflow = self.misc_log.len() - 200;
@@ -2287,6 +2298,68 @@ mod tests {
             .find(|p| p.name == "Bogmal")
             .expect("bogmal");
         assert_eq!(bogmal.damage, 18);
+    }
+
+    #[test]
+    fn pet_engage_tell_merges_named_pet_onto_owner() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+        // Group mode: named pets still look like other players until learned.
+        assert!(!tracker.snapshot().self_only);
+
+        tracker.ingest(hit(100.0, "Lord Nagafen", 100));
+        // Pet swings under its own name before we learn ownership.
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Garn".into(),
+            target: "Lord Nagafen".into(),
+            amount: 40,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        let mid = tracker.snapshot().active_fight.expect("fight");
+        assert!(mid.players.iter().any(|p| p.name == "Garn"));
+
+        // Engage tell maps Garn → Kenkyo and folds prior damage.
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.3),
+            kind: MiscKind::PetEngage,
+            summary: "Garn engaging Lord Nagafen".into(),
+            who: Some("Garn".into()),
+            detail: Some("Lord Nagafen".into()),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.5),
+            incoming: false,
+            attacker: "Garn".into(),
+            target: "Lord Nagafen".into(),
+            amount: 50,
+            hit_type: "cleave".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(!fight.players.iter().any(|p| p.name == "Garn"));
+        let kenkyo = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Kenkyo")
+            .expect("kenkyo");
+        assert_eq!(kenkyo.damage, 190);
+        assert!(kenkyo
+            .abilities
+            .iter()
+            .any(|a| a.name == "Pet (Garn): slash" && a.damage == 40));
+        assert!(kenkyo
+            .abilities
+            .iter()
+            .any(|a| a.name == "Pet (Garn): cleave" && a.damage == 50));
     }
 
     #[test]

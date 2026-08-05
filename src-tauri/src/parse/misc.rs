@@ -26,6 +26,14 @@ static CHAT: Lazy<Regex> = Lazy::new(|| {
     .expect("chat")
 });
 
+/// Named pet ordered to attack: `Garn told you, 'Attacking Lord Nagafen Master.'`
+static PET_ENGAGE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?i)^(?P<pet>\S+) told you, ['\"]Attacking (?P<target>.+) Master\.['\"]$"#,
+    )
+    .expect("pet engage")
+});
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MiscKind {
@@ -33,6 +41,8 @@ pub enum MiscKind {
     Random,
     Roll,
     Chat,
+    /// Your named pet confirmed an attack order (ownership signal).
+    PetEngage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +84,16 @@ pub fn parse_misc_line(action: &str, timestamp: &str, time_secs: Option<f64>) ->
             summary: format!("{} rolled {}", &caps["who"], &caps["roll"]),
             who: Some(caps["who"].to_string()),
             detail: Some(caps["roll"].to_string()),
+        });
+    }
+    if let Some(caps) = PET_ENGAGE.captures(action) {
+        return Some(MiscEvent {
+            timestamp: timestamp.to_string(),
+            time_secs,
+            kind: MiscKind::PetEngage,
+            summary: format!("{} engaging {}", &caps["pet"], &caps["target"]),
+            who: Some(caps["pet"].to_string()),
+            detail: Some(caps["target"].to_string()),
         });
     }
     if let Some(caps) = CHAT.captures(action) {
@@ -118,5 +138,18 @@ mod tests {
         let chat = parse_misc_line("Alice tells the raid, 'stack on me'", "t", None).unwrap();
         assert_eq!(chat.kind, MiscKind::Chat);
         assert!(chat.summary.contains("raid"));
+    }
+
+    #[test]
+    fn parses_pet_engage_tell() {
+        let engage = parse_misc_line(
+            "Garn told you, 'Attacking Lord Nagafen Master.'",
+            "t",
+            Some(1.0),
+        )
+        .unwrap();
+        assert_eq!(engage.kind, MiscKind::PetEngage);
+        assert_eq!(engage.who.as_deref(), Some("Garn"));
+        assert_eq!(engage.detail.as_deref(), Some("Lord Nagafen"));
     }
 }

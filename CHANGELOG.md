@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 
 ## [Unreleased]
 
+## [0.1.27] — 2026-08-05
+
+### Fixed
+
+- Named pets that report `Pet told you, 'Attacking … Master.'` are mapped to you and folded into your DPS/ability breakdown (e.g. Garn on Lord Nagafen no longer ranks as a separate player).
+
 ## [0.1.26] — 2026-07-30
 
 ### Fixed
@@ -195,7 +201,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning fol
 - Windows NSIS installer via GitHub Actions; remembers last log and window positions.
 - Mac + Parallels path: run from source and attach to the VM-mounted log.
 
-[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.24...HEAD
+[Unreleased]: https://github.com/kpxcoolx/eql-meter/compare/v0.1.27...HEAD
+[0.1.27]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.27
+[0.1.26]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.26
 [0.1.24]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.24
 [0.1.23]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.23
 [0.1.22]: https://github.com/kpxcoolx/eql-meter/releases/tag/v0.1.22
