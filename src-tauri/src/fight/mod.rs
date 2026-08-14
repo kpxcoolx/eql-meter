@@ -3,8 +3,11 @@ use crate::parse::{
     WhoPlayerEvent,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// How long a pet-only buff cast may bind the next `goes berserk` landing.
+const PET_BUFF_BIND_SECS: f64 = 10.0;
 
 const IDLE_SECS: f64 = 10.0;
 
@@ -458,6 +461,14 @@ pub struct FightTracker {
     misc_log: Vec<MiscEvent>,
     /// Pet display name → owner character name.
     pet_owners: HashMap<String, String>,
+    /// Last named summoned pet (lowercase) for this character — one live class pet.
+    last_named_pet: Option<String>,
+    /// Until this timestamp, a `goes berserk` landing binds that name as your pet.
+    pending_pet_buff_until: Option<f64>,
+    /// Live group roster from join/leave/tells (lowercase keys).
+    group_members: HashSet<String>,
+    /// True after any group membership signal this session.
+    group_seen: bool,
 }
 
 impl Default for FightTracker {
@@ -479,6 +490,10 @@ impl Default for FightTracker {
             recent_rosters: Vec::new(),
             misc_log: Vec::new(),
             pet_owners: HashMap::new(),
+            last_named_pet: None,
+            pending_pet_buff_until: None,
+            group_members: HashSet::new(),
+            group_seen: false,
         }
     }
 }
@@ -545,6 +560,10 @@ impl FightTracker {
         self.recent_rosters.clear();
         self.misc_log.clear();
         self.pet_owners.clear();
+        self.last_named_pet = None;
+        self.pending_pet_buff_until = None;
+        self.group_members.clear();
+        self.group_seen = false;
     }
 
     /// Remove one fight by id from active or recent history.
@@ -756,10 +775,13 @@ impl FightTracker {
         let key = fight_key(&dmg.target);
         let already_engaged = self.active.contains_key(&key);
 
-        // Only YOU (or your pet) can start a fight. Other players' hits on a mob
-        // you never touched stay out of the list (open-world noise).
+        // Only YOU (or your pet) can start a fight while idle — nearby open-world
+        // pulls stay out. Once you are in combat, other players hitting NPCs may
+        // attach those adds to the live pull (group DPS on a mob you never swung on).
         if !already_engaged && !self.is_self_combatant(&attacker) {
-            return;
+            if self.active.is_empty() || !looks_like_npc(&dmg.target) {
+                return;
+            }
         }
 
         // Optional: personal parse — ignore group even on fights you opened.
@@ -972,15 +994,79 @@ impl FightTracker {
     }
 
     fn on_misc(&mut self, misc: MiscEvent) {
-        // Named pets confirm attack orders to their owner only:
-        // "Garn told you, 'Attacking Lord Nagafen Master.'"
-        if misc.kind == MiscKind::PetEngage {
-            if let Some(pet) = misc.who.as_deref() {
-                if let Some(owner) = self.character.clone() {
-                    self.note_pet(pet, &owner);
+        let now = event_time_or_wall(misc.time_secs);
+        match misc.kind {
+            MiscKind::PetEngage => {
+                if let Some(pet) = misc.who.as_deref() {
+                    if let Some(owner) = self.character.clone() {
+                        self.note_pet(pet, &owner);
+                    }
+                }
+                return;
+            }
+            MiscKind::PetLeader => {
+                let Some(pet) = misc.who.as_deref() else {
+                    return;
+                };
+                let Some(leader) = misc.detail.as_deref() else {
+                    return;
+                };
+                if self.is_self_combatant(leader) {
+                    if let Some(owner) = self.character.clone() {
+                        self.note_pet(pet, &owner);
+                    }
+                } else if looks_like_combatant_name(leader) && !is_self_label(leader) {
+                    // Ally's pet named its owner — remember so we don't claim it as ours.
+                    self.note_pet(pet, leader);
+                }
+                return;
+            }
+            MiscKind::CastBegin => {
+                self.pending_pet_buff_until = Some(now + PET_BUFF_BIND_SECS);
+                return;
+            }
+            MiscKind::PetBuffLanding => {
+                let pending = self.pending_pet_buff_until.unwrap_or(0.0);
+                if now <= pending {
+                    if let Some(pet) = misc.who.as_deref() {
+                        if looks_like_combatant_name(pet) {
+                            if let Some(owner) = self.character.clone() {
+                                if !pet.eq_ignore_ascii_case(&owner) {
+                                    self.note_pet(pet, &owner);
+                                }
+                            }
+                        }
+                    }
+                }
+                self.pending_pet_buff_until = None;
+                return;
+            }
+            MiscKind::GroupJoin => {
+                self.group_seen = true;
+                if let Some(who) = misc.who.as_deref() {
+                    self.note_group_member(who);
+                }
+                return;
+            }
+            MiscKind::GroupLeave => {
+                if let Some(who) = misc.who.as_deref() {
+                    self.group_members.remove(&who.to_ascii_lowercase());
+                }
+                return;
+            }
+            MiscKind::GroupDisband => {
+                self.group_members.clear();
+                self.group_seen = false;
+                return;
+            }
+            MiscKind::Chat => {
+                if misc.summary.contains("(group)") {
+                    if let Some(who) = misc.who.as_deref() {
+                        self.note_group_member(who);
+                    }
                 }
             }
-            return;
+            _ => {}
         }
         self.misc_log.push(misc);
         if self.misc_log.len() > 200 {
@@ -1163,8 +1249,30 @@ impl FightTracker {
                 return;
             }
         }
-        self.pet_owners.insert(key, owner.to_string());
+        self.pet_owners.insert(key.clone(), owner.to_string());
+        if self.is_self_combatant(owner) && is_named_summoned_pet(pet_name) {
+            if let Some(prev) = self.last_named_pet.take() {
+                if prev != key {
+                    self.pet_owners.remove(&prev);
+                }
+            }
+            self.last_named_pet = Some(key);
+        }
+        self.pending_pet_buff_until = None;
         self.fold_pet_into_owner(pet_name, owner);
+    }
+
+    fn note_group_member(&mut self, name: &str) {
+        if is_self_label(name) || self.is_self_combatant(name) {
+            self.group_seen = true;
+            return;
+        }
+        let key = name.trim().to_ascii_lowercase();
+        if key.is_empty() {
+            return;
+        }
+        self.group_seen = true;
+        self.group_members.insert(key);
     }
 
     /// Move a mistaken separate player row (named pet) onto the owner.
@@ -1192,6 +1300,9 @@ impl FightTracker {
             if lower == me.to_ascii_lowercase() {
                 return false;
             }
+        }
+        if self.group_members.contains(&lower) {
+            return true;
         }
         let Some(roster) = &self.raid_roster else {
             return false;
@@ -1227,7 +1338,8 @@ impl FightTracker {
         }
         // Group mode: never auto-claim single-token names as your pet. Party
         // members look identical to named pets ("Galactic hits…") in the log.
-        // Pets are still learned from "Your …" and possessive labels.
+        // Pets are still learned from "Your …", possessive labels, pet tells,
+        // /pet who leader, and pet-only buff landings.
         if !self.self_only {
             return false;
         }
@@ -1289,6 +1401,11 @@ fn pet_display_name(rest: &str) -> String {
         }
     }
     trimmed.to_string()
+}
+
+/// Proper-named class pet (Garn, Jabektik) — not "warder" / "fire elemental".
+fn is_named_summoned_pet(name: &str) -> bool {
+    looks_like_combatant_name(name) && !is_owned_pet_phrase(name)
 }
 
 fn is_self_label(name: &str) -> bool {
@@ -2438,6 +2555,207 @@ mod tests {
         assert_eq!(fight.players.len(), 1);
         assert_eq!(fight.players[0].name, "Kenkyo");
         assert_eq!(fight.players[0].healing, 60);
+    }
+
+    #[test]
+    fn pet_leader_say_merges_named_pet_onto_owner() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "Lord Nagafen", 100));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Jaber".into(),
+            target: "Lord Nagafen".into(),
+            amount: 40,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.3),
+            kind: MiscKind::PetLeader,
+            summary: "Jaber leader Kenkyo".into(),
+            who: Some("Jaber".into()),
+            detail: Some("Kenkyo".into()),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.5),
+            incoming: false,
+            attacker: "Jaber".into(),
+            target: "Lord Nagafen".into(),
+            amount: 50,
+            hit_type: "cleave".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(!fight.players.iter().any(|p| p.name == "Jaber"));
+        let kenkyo = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Kenkyo")
+            .expect("kenkyo");
+        assert_eq!(kenkyo.damage, 190);
+    }
+
+    #[test]
+    fn pet_buff_landing_binds_after_own_cast() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "a skeleton", 100));
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.1),
+            kind: MiscKind::CastBegin,
+            summary: "Casting Burnout".into(),
+            who: None,
+            detail: Some("Burnout".into()),
+        }));
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            kind: MiscKind::PetBuffLanding,
+            summary: "Jabektik goes berserk".into(),
+            who: Some("Jabektik".into()),
+            detail: Some("berserk".into()),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.5),
+            incoming: false,
+            attacker: "Jabektik".into(),
+            target: "a skeleton".into(),
+            amount: 80,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(!fight.players.iter().any(|p| p.name == "Jabektik"));
+        let kenkyo = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Kenkyo")
+            .expect("kenkyo");
+        assert_eq!(kenkyo.damage, 180);
+        assert!(kenkyo
+            .abilities
+            .iter()
+            .any(|a| a.name == "Pet (Jabektik): hit" && a.damage == 80));
+    }
+
+    #[test]
+    fn group_mate_attaches_add_during_live_pull() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "a rock golem", 100));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "Galactic".into(),
+            target: "a skeleton".into(),
+            amount: 200,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let snap = tracker.snapshot();
+        assert_eq!(snap.active_fights.len(), 2);
+        assert!(snap.active_fights.iter().any(|f| f.target == "a skeleton"));
+        let combined = snap.active_fight.expect("combined");
+        assert_eq!(combined.total_damage, 300);
+        assert!(combined.players.iter().any(|p| p.name == "Galactic"));
+    }
+
+    #[test]
+    fn group_join_prevents_claiming_member_as_pet_in_self_only() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+        tracker.set_self_only(true);
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(99.0),
+            kind: MiscKind::GroupJoin,
+            summary: "Galactic joined group".into(),
+            who: Some("Galactic".into()),
+            detail: None,
+        }));
+
+        tracker.ingest(hit(100.0, "a rock golem", 100));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            incoming: false,
+            attacker: "a rock golem".into(),
+            target: "Galactic".into(),
+            amount: 15,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "Galactic".into(),
+            target: "a rock golem".into(),
+            amount: 50,
+            hit_type: "slash".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert_eq!(fight.players[0].name, "Kenkyo");
+        assert_eq!(fight.players[0].damage, 100);
+        assert!(!fight.players[0].abilities.iter().any(|a| a.name.contains("Galactic")));
+    }
+
+    #[test]
+    fn berserk_without_pet_cast_does_not_bind() {
+        let mut tracker = FightTracker::default();
+        tracker.set_character(Some("Kenkyo".into()));
+
+        tracker.ingest(hit(100.0, "a skeleton", 100));
+        tracker.ingest(CombatEvent::Misc(crate::parse::MiscEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.2),
+            kind: MiscKind::PetBuffLanding,
+            summary: "Jabektik goes berserk".into(),
+            who: Some("Jabektik".into()),
+            detail: Some("berserk".into()),
+        }));
+        tracker.ingest(CombatEvent::Damage(DamageEvent {
+            timestamp: String::new(),
+            time_secs: Some(100.4),
+            incoming: false,
+            attacker: "Jabektik".into(),
+            target: "a skeleton".into(),
+            amount: 80,
+            hit_type: "hit".into(),
+            spell: None,
+            modifiers: Vec::new(),
+        }));
+
+        let fight = tracker.snapshot().active_fight.expect("fight");
+        assert!(fight.players.iter().any(|p| p.name == "Jabektik"));
+        let kenkyo = fight
+            .players
+            .iter()
+            .find(|p| p.name == "Kenkyo")
+            .expect("kenkyo");
+        assert_eq!(kenkyo.damage, 100);
     }
 }
 

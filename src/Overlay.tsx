@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import type { FightSummary, MeterState } from "./App";
+import { petDamageByName } from "./petMeter";
 import { liveRate, useLiveDuration } from "./useLiveDuration";
 
 export type OverlayStatus = {
@@ -64,21 +65,6 @@ function cycleValue<T>(values: T[], current: T): T {
   const index = values.indexOf(current);
   if (index < 0) return values[0];
   return values[(index + 1) % values.length];
-}
-
-/** Sum damage per pet from "Pet (Name): ability" breakdown rows. */
-function petDamageByName(
-  abilities: { name: string; damage: number }[]
-): Map<string, number> {
-  const pets = new Map<string, number>();
-  for (const ability of abilities) {
-    const match = /^Pet \((.+)\): /.exec(ability.name);
-    if (!match) continue;
-    const petName = match[1];
-    const existing = pets.get(petName) ?? 0;
-    pets.set(petName, existing + ability.damage);
-  }
-  return pets;
 }
 
 export default function Overlay() {

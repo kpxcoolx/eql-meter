@@ -11,6 +11,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isPetAbility, nestPetAbilities } from "./petMeter";
 import { formatDuration, liveRate, useLiveDuration } from "./useLiveDuration";
 import {
   checkForAppUpdate,
@@ -121,7 +122,18 @@ export type RaidRoster = {
   players: RosterPlayer[];
 };
 
-export type MiscKind = "loot" | "random" | "roll" | "chat";
+export type MiscKind =
+  | "loot"
+  | "random"
+  | "roll"
+  | "chat"
+  | "pet_engage"
+  | "pet_leader"
+  | "cast_begin"
+  | "pet_buff_landing"
+  | "group_join"
+  | "group_leave"
+  | "group_disband";
 
 export type MiscEvent = {
   timestamp: string;
@@ -984,7 +996,7 @@ function App() {
   const selectedPetDamage = useMemo(() => {
     if (!selectedPlayerStat) return 0;
     return selectedPlayerStat.abilities
-      .filter((a) => a.name.startsWith("Pet ("))
+      .filter((a) => isPetAbility(a.name))
       .reduce((sum, a) => sum + a.damage, 0);
   }, [selectedPlayerStat]);
 
@@ -994,38 +1006,7 @@ function App() {
     const filtered = selectedPlayerStat.abilities.filter((ability) =>
       healsMode ? ability.healing > 0 : ability.damage > 0
     );
-
-    // Roll every "Pet (Name): ability" into one row per pet.
-    const pets = new Map<
-      string,
-      { name: string; hits: number; damage: number; healing: number }
-    >();
-    const own: typeof filtered = [];
-
-    for (const ability of filtered) {
-      const match = /^Pet \((.+)\): /.exec(ability.name);
-      if (!match) {
-        own.push(ability);
-        continue;
-      }
-      const petName = match[1];
-      const key = petName.toLowerCase();
-      const existing = pets.get(key);
-      if (existing) {
-        existing.hits += ability.hits;
-        existing.damage += ability.damage;
-        existing.healing += ability.healing;
-      } else {
-        pets.set(key, {
-          name: `Pet (${petName})`,
-          hits: ability.hits,
-          damage: ability.damage,
-          healing: ability.healing,
-        });
-      }
-    }
-
-    const combined = [...own, ...pets.values()];
+    const combined = nestPetAbilities(filtered);
     combined.sort((a, b) => {
       const aAmount = healsMode ? a.healing : a.damage;
       const bAmount = healsMode ? b.healing : b.damage;
@@ -2628,7 +2609,7 @@ function App() {
                       ? Math.max(selectedPlayerStat.healing, 1)
                       : Math.max(selectedPlayerStat.damage, 1);
                     const width = Math.max(4, (amount / total) * 100);
-                    const isPet = ability.name.startsWith("Pet (");
+                    const isPet = isPetAbility(ability.name);
                     let fillClass = "ability";
                     if (isHealsTab) {
                       fillClass = "heal";
